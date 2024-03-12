@@ -146,10 +146,12 @@ Stokes::setup()
     sparsity_pressure_mass.compress();
 
     pcout << "  Initializing the matrices" << std::endl;
+    mass_matrix.reinit(sparsity);
     system_matrix.reinit(sparsity);
     pressure_mass.reinit(sparsity_pressure_mass);
+    lhs_matrix.reinit(sparsity);
+    rhs_matrix.reinit(sparsity);
 
-    pcout << "  Initializing the system right-hand side" << std::endl;
     system_rhs.reinit(block_owned_dofs, MPI_COMM_WORLD);
     pcout << "  Initializing the solution vector" << std::endl;
     solution_owned.reinit(block_owned_dofs, MPI_COMM_WORLD);
@@ -177,12 +179,14 @@ Stokes::assemble()
                                      update_JxW_values);
 
   FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
+  FullMatrix<double> cell_mass_matrix(dofs_per_cell, dofs_per_cell);
   FullMatrix<double> cell_pressure_mass_matrix(dofs_per_cell, dofs_per_cell);
   Vector<double>     cell_rhs(dofs_per_cell);
 
   std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
 
   system_matrix = 0.0;
+  mass_matrix = 0.0;
   system_rhs    = 0.0;
   pressure_mass = 0.0;
 
@@ -197,6 +201,7 @@ Stokes::assemble()
       fe_values.reinit(cell);
 
       cell_matrix               = 0.0;
+      cell_mass_matrix      = 0.0;
       cell_rhs                  = 0.0;
       cell_pressure_mass_matrix = 0.0;
 
@@ -213,6 +218,11 @@ Stokes::assemble()
             {
               for (unsigned int j = 0; j < dofs_per_cell; ++j)
                 {
+                  // Mass matrix
+                  cell_mass_matrix(i, j) += fe_values.shape_value(i, q) *
+                                            fe_values.shape_value(j, q) /
+                                            deltat * fe_values.JxW(q);
+                                            
                   // Viscosity term.
                   cell_matrix(i, j) +=
                     nu *
@@ -235,50 +245,57 @@ Stokes::assemble()
                     fe_values[pressure].value(i, q) *
                     fe_values[pressure].value(j, q) / nu * fe_values.JxW(q);
                 }
-
-              // Forcing term.
-              cell_rhs(i) += scalar_product(forcing_term_tensor,
-                                            fe_values[velocity].value(i, q)) *
-                             fe_values.JxW(q);
             }
         }
 
       // Boundary integral for Neumann BCs.
-      if (cell->at_boundary())
-        {
-          for (unsigned int f = 0; f < cell->n_faces(); ++f)
-            {
-              if (cell->face(f)->at_boundary() &&
-                  cell->face(f)->boundary_id() == 2) // 2 -> out
-                {
-                  fe_face_values.reinit(cell, f);
-
-                  for (unsigned int q = 0; q < n_q_face; ++q)
-                    {
-                      for (unsigned int i = 0; i < dofs_per_cell; ++i)
-                        {
-                          cell_rhs(i) +=
-                            -p_out *
-                            scalar_product(fe_face_values.normal_vector(q),
-                                           fe_face_values[velocity].value(i,
-                                                                          q)) *
-                            fe_face_values.JxW(q);
-                        }
-                    }
-                }
-            }
-        }
+      //if (cell->at_boundary())
+      //  {
+      //    for (unsigned int f = 0; f < cell->n_faces(); ++f)
+      //      {
+      //        if (cell->face(f)->at_boundary() &&
+      //            cell->face(f)->boundary_id() == 5) // 2 -> out
+      //          {
+      //            fe_face_values.reinit(cell, f);
+//
+      //            for (unsigned int q = 0; q < n_q_face; ++q)
+      //              {
+      //                for (unsigned int i = 0; i < dofs_per_cell; ++i)
+      //                  {
+      //                    cell_rhs(i) +=
+      //                      -p_out *
+      //                      scalar_product(fe_face_values.normal_vector(q),
+      //                                     fe_face_values[velocity].value(i,
+      //                                                                    q)) *
+      //                      fe_face_values.JxW(q);
+      //                  }
+      //              }
+      //          }
+      //      }
+      //  }
 
       cell->get_dof_indices(dof_indices);
 
+      mass_matrix.add(dof_indices, cell_mass_matrix);
       system_matrix.add(dof_indices, cell_matrix);
       system_rhs.add(dof_indices, cell_rhs);
       pressure_mass.add(dof_indices, cell_pressure_mass_matrix);
     }
 
   system_matrix.compress(VectorOperation::add);
+  mass_matrix.compress(VectorOperation::add);
   system_rhs.compress(VectorOperation::add);
   pressure_mass.compress(VectorOperation::add);
+
+  // We build the matrix on the left-hand side of the algebraic problem (the one
+  // that we'll invert at each timestep).
+  lhs_matrix.copy_from(mass_matrix);
+  lhs_matrix.add(theta, stiffness_matrix);
+
+  // We build the matrix on the right-hand side (the one that multiplies the old
+  // solution un).
+  rhs_matrix.copy_from(mass_matrix);
+  rhs_matrix.add(-(1.0 - theta), stiffness_matrix);
 
   // Dirichlet boundary conditions.
   {
@@ -298,6 +315,9 @@ Stokes::assemble()
     boundary_functions.clear();
     Functions::ZeroFunction<dim> zero_function(dim + 1);
     boundary_functions[1] = &zero_function;
+    boundary_functions[2] = &zero_function;
+    boundary_functions[3] = &zero_function;
+    boundary_functions[4] = &zero_function;
     VectorTools::interpolate_boundary_values(dof_handler,
                                              boundary_functions,
                                              boundary_values,
@@ -309,8 +329,9 @@ Stokes::assemble()
   }
 }
 
+
 void
-Stokes::solve()
+Stokes::solve_time_step()
 {
   pcout << "===============================================" << std::endl;
 
@@ -328,6 +349,7 @@ Stokes::solve()
                             system_matrix.block(1, 0));
 
   pcout << "Solving the linear system" << std::endl;
+
   solver.solve(system_matrix, solution_owned, system_rhs, preconditioner);
   pcout << "  " << solver_control.last_step() << " GMRES iterations"
         << std::endl;
@@ -336,10 +358,46 @@ Stokes::solve()
 }
 
 void
-Stokes::output()
+Stokes::solve()
 {
+  
+  assemble_matrices();
+
   pcout << "===============================================" << std::endl;
 
+  // Apply the initial condition.
+  {
+    pcout << "Applying the initial condition" << std::endl;
+
+    VectorTools::interpolate(dof_handler, u_0, solution_owned);
+    solution = solution_owned;
+
+    // Output the initial solution.
+    output(0);
+    pcout << "-----------------------------------------------" << std::endl;
+  }
+
+  unsigned int time_step = 0;
+  double       time      = 0;
+
+  while (time < T)
+    {
+      time += deltat;
+      ++time_step;
+
+      pcout << "n = " << std::setw(3) << time_step << ", t = " << std::setw(5)
+            << time << ":" << std::flush;
+
+      assemble_rhs(time);
+      solve_time_step();
+      output(time_step);
+    }
+}
+
+void
+Stokes::output()
+{
+  std::out<<"fanculo\n"<<std:endl;
   DataOut<dim> data_out;
 
   std::vector<DataComponentInterpretation::DataComponentInterpretation>
@@ -370,6 +428,4 @@ Stokes::output()
                                       0,
                                       MPI_COMM_WORLD);
 
-  pcout << "Output written to " << output_file_name << std::endl;
-  pcout << "===============================================" << std::endl;
 }
