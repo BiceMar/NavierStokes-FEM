@@ -53,12 +53,18 @@ public:
         values[i] = 0.0;
     }
 
-    virtual double
+     virtual double
     value(const Point<dim> & /*p*/,
           const unsigned int component = 0) const override
     {
+      if (component == 1)
+        return -g;
+      else
         return 0.0;
     }
+
+  protected:
+    const double g = 0.0;
   };
 
   // Function for inlet velocity. This actually returns an object with four
@@ -77,46 +83,49 @@ public:
     virtual void
     vector_value(const Point<dim> &p, Vector<double> &values) const override
     {
-      values[0] = 16.0 * mean_velocity * p[1] * p[2] * (height - p[1]) * (height - p[2]) / (height*height*height*height);
-
       for (unsigned int i = 1; i < dim + 1; ++i)
         values[i] = 0.0;
+      
+      values[2] = alpha * p[1] * (1.0 - p[1]) * (1.0 - p[0]) * (1.0 - p[0]);
     }
 
     virtual double
     value(const Point<dim> &p, const unsigned int component = 0) const override
     {
-      if (component == 0)
-        return 16.0 * mean_velocity * p[1] * p[2] * (height - p[1]) * (height - p[2]) / (height*height*height*height);
+      if (component == 2)
+        return alpha * p[1] * (1.0 - p[1]) * (1.0 - p[0]) * (1.0 - p[0]);
       else
         return 0.0;
     }
     protected:
-      const double height = 1.0;
-      const double mean_velocity = 2.25;
+      const double alpha = 2.0;
   };
 
-  // Function g
-  class functionG : public Function<dim>
-  {
-  public:
-    functionG()
-      : Function<dim>(dim + 1) // 3 components for the velocity and one for the pressure
-    {}
 
-    virtual void
-    vector_value(const Point<dim> &p, Vector<double> &values) const override
-    {
-      for (unsigned int i = 1; i < dim; ++i)
-        values[i] = 0.0;
-    }
+  // class functionG : public Function<dim>
+  // {
+  // public:
+  //   functionG()
+  //     : Function<dim>(dim + 1) // 3 components for the velocity and one for the pressure
+  //   {}
 
-    virtual double
-    value(const Point<dim> &p, const unsigned int component = 0) const override
-    {
-        return 0.0;
-    }
-  };
+  //   virtual void
+  //   vector_value(const Point<dim> &p, Vector<double> &values) const override
+  //   {
+  //     for (unsigned int i = 1; i < dim; ++i)
+  //       values[i] = 0;
+  //     values[2] = -p_out;
+  //   }
+
+  //   virtual double
+  //   value(const Point<dim> &p, const unsigned int component = 0) const override
+  //   {
+  //     if (component == 2)
+  //       return -p_out;
+  //     else
+  //       return 0.0;
+  //   }
+  // };
 
   // Since we're working with block matrices, we need to make our own
   // preconditioner class. A preconditioner class can be any class that exposes
@@ -194,6 +203,7 @@ public:
   };
 
   // Block-triangular preconditioner.
+
   class PreconditionBlockTriangular
   {
   public:
@@ -261,8 +271,7 @@ public:
   };
 
   // Constructor.
-  Stokes(const std::string  &mesh_file_name_,
-         const unsigned int &degree_velocity_,
+  Stokes(const unsigned int &degree_velocity_,
          const unsigned int &degree_pressure_,
          const double & T_,
          const double & deltat_,
@@ -270,7 +279,6 @@ public:
     : mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD))
     , mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
     , pcout(std::cout, mpi_rank == 0)
-    , mesh_file_name(mesh_file_name_)
     , degree_velocity(degree_velocity_)
     , degree_pressure(degree_pressure_)
     , T(T_)
@@ -285,26 +293,29 @@ public:
 
   // Assemble system. We also assemble the pressure mass matrix (needed for the
   // preconditioner).
-  void
-  assemble();
+  
 
   // Solve system.
   void
   solve();
 
+  
+
+protected:
+
+  void
+  assemble_matrices();
+
+  void 
+  assemble_rhs(const double &time);
+
   // Output results.
   void
-  output();
+  output(const unsigned int &time_step, const double &time) const;
 
   // Solve system.
   void
   solve_time_step();
-
-protected:
-
-  const double T;
-  const double deltat;
-  const double theta;
 
   // MPI parallel. /////////////////////////////////////////////////////////////
 
@@ -334,13 +345,18 @@ protected:
   // Discretization. ///////////////////////////////////////////////////////////
 
   // Mesh file name.
-  const std::string mesh_file_name;
+  //const std::string mesh_file_name;
 
   // Polynomial degree used for velocity.
   const unsigned int degree_velocity;
 
   // Polynomial degree used for pressure.
   const unsigned int degree_pressure;
+
+  const double T;
+  const double deltat;
+  const double theta;
+
 
   // Mesh.
   parallel::fullydistributed::Triangulation<dim> mesh;
@@ -379,10 +395,10 @@ protected:
   TrilinosWrappers::BlockSparseMatrix pressure_mass;
 
   // Matrix on the left-hand side (M / deltat + theta A).
-  TrilinosWrappers::SparseMatrix lhs_matrix;
+  TrilinosWrappers::BlockSparseMatrix lhs_matrix;
 
   // Matrix on the right-hand side (M / deltat - (1 - theta) A).
-  TrilinosWrappers::SparseMatrix rhs_matrix;
+  TrilinosWrappers::BlockSparseMatrix rhs_matrix;
 
   // Right-hand side vector in the linear system.
   TrilinosWrappers::MPI::BlockVector system_rhs;

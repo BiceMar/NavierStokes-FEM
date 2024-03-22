@@ -53,10 +53,10 @@ RM = /u/sw/toolchains/gcc-glibc/11.2.0/base/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/bice/NMPDE/nmpde-project3
+CMAKE_SOURCE_DIR = /home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/bice/NMPDE/nmpde-project3/build
+CMAKE_BINARY_DIR = /home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3/build
 
 # Include any dependencies generated for this target.
 include CMakeFiles/lab-09.dir/depend.make
@@ -72,30 +72,30 @@ include CMakeFiles/lab-09.dir/flags.make
 CMakeFiles/lab-09.dir/src/lab-09.cpp.o: CMakeFiles/lab-09.dir/flags.make
 CMakeFiles/lab-09.dir/src/lab-09.cpp.o: ../src/lab-09.cpp
 CMakeFiles/lab-09.dir/src/lab-09.cpp.o: CMakeFiles/lab-09.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/bice/NMPDE/nmpde-project3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/lab-09.dir/src/lab-09.cpp.o"
-	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/mpicxx $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/lab-09.dir/src/lab-09.cpp.o -MF CMakeFiles/lab-09.dir/src/lab-09.cpp.o.d -o CMakeFiles/lab-09.dir/src/lab-09.cpp.o -c /home/bice/NMPDE/nmpde-project3/src/lab-09.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/lab-09.dir/src/lab-09.cpp.o"
+	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/mpicxx $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/lab-09.dir/src/lab-09.cpp.o -MF CMakeFiles/lab-09.dir/src/lab-09.cpp.o.d -o CMakeFiles/lab-09.dir/src/lab-09.cpp.o -c /home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3/src/lab-09.cpp
 
 CMakeFiles/lab-09.dir/src/lab-09.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/lab-09.dir/src/lab-09.cpp.i"
-	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/mpicxx $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/bice/NMPDE/nmpde-project3/src/lab-09.cpp > CMakeFiles/lab-09.dir/src/lab-09.cpp.i
+	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/mpicxx $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3/src/lab-09.cpp > CMakeFiles/lab-09.dir/src/lab-09.cpp.i
 
 CMakeFiles/lab-09.dir/src/lab-09.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/lab-09.dir/src/lab-09.cpp.s"
-	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/mpicxx $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/bice/NMPDE/nmpde-project3/src/lab-09.cpp -o CMakeFiles/lab-09.dir/src/lab-09.cpp.s
+	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/mpicxx $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3/src/lab-09.cpp -o CMakeFiles/lab-09.dir/src/lab-09.cpp.s
 
 CMakeFiles/lab-09.dir/src/Stokes.cpp.o: CMakeFiles/lab-09.dir/flags.make
 CMakeFiles/lab-09.dir/src/Stokes.cpp.o: ../src/Stokes.cpp
 CMakeFiles/lab-09.dir/src/Stokes.cpp.o: CMakeFiles/lab-09.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/bice/NMPDE/nmpde-project3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/lab-09.dir/src/Stokes.cpp.o"
-	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/mpicxx $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/lab-09.dir/src/Stokes.cpp.o -MF CMakeFiles/lab-09.dir/src/Stokes.cpp.o.d -o CMakeFiles/lab-09.dir/src/Stokes.cpp.o -c /home/bice/NMPDE/nmpde-project3/src/Stokes.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/lab-09.dir/src/Stokes.cpp.o"
+	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/mpicxx $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/lab-09.dir/src/Stokes.cpp.o -MF CMakeFiles/lab-09.dir/src/Stokes.cpp.o.d -o CMakeFiles/lab-09.dir/src/Stokes.cpp.o -c /home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3/src/Stokes.cpp
 
 CMakeFiles/lab-09.dir/src/Stokes.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/lab-09.dir/src/Stokes.cpp.i"
-	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/mpicxx $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/bice/NMPDE/nmpde-project3/src/Stokes.cpp > CMakeFiles/lab-09.dir/src/Stokes.cpp.i
+	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/mpicxx $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3/src/Stokes.cpp > CMakeFiles/lab-09.dir/src/Stokes.cpp.i
 
 CMakeFiles/lab-09.dir/src/Stokes.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/lab-09.dir/src/Stokes.cpp.s"
-	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/mpicxx $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/bice/NMPDE/nmpde-project3/src/Stokes.cpp -o CMakeFiles/lab-09.dir/src/Stokes.cpp.s
+	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/mpicxx $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3/src/Stokes.cpp -o CMakeFiles/lab-09.dir/src/Stokes.cpp.s
 
 # Object files for target lab-09
 lab__09_OBJECTS = \
@@ -235,7 +235,7 @@ lab-09: /u/sw/toolchains/gcc-glibc/11.2.0/base/lib/libmpi_usempi_ignore_tkr.so
 lab-09: /u/sw/toolchains/gcc-glibc/11.2.0/base/lib/libmpi_mpifh.so
 lab-09: /u/sw/toolchains/gcc-glibc/11.2.0/base/lib/libmpi.so
 lab-09: CMakeFiles/lab-09.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/bice/NMPDE/nmpde-project3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Linking CXX executable lab-09"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Linking CXX executable lab-09"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/lab-09.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.
@@ -247,6 +247,6 @@ CMakeFiles/lab-09.dir/clean:
 .PHONY : CMakeFiles/lab-09.dir/clean
 
 CMakeFiles/lab-09.dir/depend:
-	cd /home/bice/NMPDE/nmpde-project3/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /home/bice/NMPDE/nmpde-project3 /home/bice/NMPDE/nmpde-project3 /home/bice/NMPDE/nmpde-project3/build /home/bice/NMPDE/nmpde-project3/build /home/bice/NMPDE/nmpde-project3/build/CMakeFiles/lab-09.dir/DependInfo.cmake --color=$(COLOR)
+	cd /home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3 /home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3 /home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3/build /home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3/build /home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3/build/CMakeFiles/lab-09.dir/DependInfo.cmake --color=$(COLOR)
 .PHONY : CMakeFiles/lab-09.dir/depend
 
