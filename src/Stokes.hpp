@@ -86,13 +86,13 @@ public:
       for (unsigned int i = 1; i < dim + 1; ++i)
         values[i] = 0.0;
       
-      values[2] = alpha * p[1] * (1.0 - p[1]) * (1.0 - p[0]) * (1.0 - p[0]);
+      values[0] = alpha * p[1] * (1.0 - p[1]) * (1.0 - p[0]) * (1.0 - p[0]);
     }
 
     virtual double
     value(const Point<dim> &p, const unsigned int component = 0) const override
     {
-      if (component == 2)
+      if (component == 0)
         return alpha * p[1] * (1.0 - p[1]) * (1.0 - p[0]) * (1.0 - p[0]);
       else
         return 0.0;

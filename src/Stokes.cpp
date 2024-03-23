@@ -376,7 +376,7 @@ Stokes::assemble_rhs(const double &time)
     {
       if (!cell->is_locally_owned())
         continue;
-
+        
       fe_values.reinit(cell);
 
       cell_rhs = 0.0;
