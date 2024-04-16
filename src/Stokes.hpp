@@ -73,7 +73,8 @@ public:
   // applying boundary conditions at the end of assembly). If we only return
   // three components, however, we may get an error message due to this function
   // being incompatible with the finite element space.
-  class InletVelocity : public Function<dim>
+  
+ /*  class InletVelocity : public Function<dim>
   {
   public:
     InletVelocity()
@@ -99,7 +100,58 @@ public:
     }
     protected:
       const double alpha = 2.0;
+  }; */
+
+  // Function for inlet velocity.
+  class InletVelocity : public Function<dim>
+  {
+  public:
+    InletVelocity()
+      : Function<dim>(dim + 1)
+    {}
+
+    /* double 
+    uMean() const
+    {
+      return 4.0/9.0 * Um;
+    } */
+
+    double
+    maxVelocity() const
+    {
+      return 16 * Um;
+    }
+
+    virtual void
+    vector_value(const Point<dim> &p, Vector<double> &values) const override
+    { 
+    
+       values[0] = 16 * Um * p[1] * p[2] *(H - p[1]) * (H - p[2]) / (std::pow(H, 4));
+
+      for (unsigned int i = 1; i < dim + 1; ++i)
+        values[i] = 0.0;
+    }
+
+    virtual double
+    value(const Point<dim> &p, const unsigned int component = 0) const override
+    {
+      if (component == 0)
+      {
+         return 16 * Um * p[1] * p[2] *(H - p[1]) * (H - p[2]) / (std::pow(H, 4));
+          
+      }
+      else
+      {
+        return 0.0;
+      }
+    }
+
+  protected:
+    double Um = 1.00;
+
+    double H = 0.41;
   };
+  
 
 
   // class functionG : public Function<dim>
@@ -304,10 +356,10 @@ public:
 protected:
 
   void
-  assemble_matrices();
+  assemble_constant_terms();
 
   void 
-  assemble_rhs(const double &time);
+  assemble_time_dependent();
 
   // Output results.
   void
@@ -354,6 +406,8 @@ protected:
   const unsigned int degree_pressure;
 
   const double T;
+  // Current time.
+  double time;
   const double deltat;
   const double theta;
 

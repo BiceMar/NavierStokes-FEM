@@ -1,6 +1,7 @@
 #include "Stokes.hpp"
 
 void
+
 Stokes::setup()
 {
   // Create the mesh.
@@ -13,7 +14,8 @@ Stokes::setup()
     grid_in.attach_triangulation(mesh_serial);
 
     const std::string mesh_file_name =
-      "../mesh/mesh-cube-10.msh";
+      "../mesh/mesh-0.1.msh";
+
 
     std::ifstream grid_in_file(mesh_file_name);
     grid_in.read_msh(grid_in_file);
@@ -26,6 +28,7 @@ Stokes::setup()
     pcout << "  Number of elements = " << mesh.n_global_active_cells()
           << std::endl;
   }
+
 
   pcout << "-----------------------------------------------" << std::endl;
 
@@ -163,7 +166,7 @@ Stokes::setup()
 }
 
 void
-Stokes::assemble_matrices()
+Stokes::assemble_constant_terms()
 {
   pcout << "===============================================" << std::endl;
   pcout << "Assembling the matrices" << std::endl;
@@ -182,7 +185,8 @@ Stokes::assemble_matrices()
   //                                  update_values | update_normal_vectors |
   //                                    update_JxW_values);         useful for assembling rhs
 
-  FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
+  FullMatrix<double> cell_lhs_matrix(dofs_per_cell, dofs_per_cell);
+  FullMatrix<double> cell_rhs_matrix(dofs_per_cell, dofs_per_cell);
   FullMatrix<double> cell_mass_matrix(dofs_per_cell, dofs_per_cell);
   FullMatrix<double> cell_pressure_mass_matrix(dofs_per_cell, dofs_per_cell);
   
@@ -190,8 +194,11 @@ Stokes::assemble_matrices()
 
   std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
 
-  system_matrix = 0.0;
-  mass_matrix = 0.0;
+  /* system_matrix = 0.0;
+  mass_matrix = 0.0; */
+
+  lhs_matrix    = 0.0;
+  rhs_matrix    = 0.0;
 
   //system_rhs    = 0.0;
   
@@ -207,8 +214,11 @@ Stokes::assemble_matrices()
 
       fe_values.reinit(cell);
 
-      cell_matrix               = 0.0;
-      cell_mass_matrix      = 0.0;
+      /* cell_matrix               = 0.0;
+      cell_mass_matrix      = 0.0; */
+
+      cell_lhs_matrix           = 0.0;
+      cell_rhs_matrix           = 0.0;
 
       //cell_rhs                  = 0.0;
       
@@ -228,123 +238,63 @@ Stokes::assemble_matrices()
             {
               for (unsigned int j = 0; j < dofs_per_cell; ++j)
                 {
-                  // Mass matrix      M = int (phi_i, phi_j)
-                  cell_mass_matrix(i, j) += fe_values[velocity].value(i, q) *
-                                            fe_values[velocity].value(j, q) /
-                                            deltat * fe_values.JxW(q);
-                                            
-                  // Viscosity term.  A = int(grad(phi_i) : grad(phi_j))
-                  cell_matrix(i, j) +=
-                    nu *
+                  // M/deltaT
+                  cell_lhs_matrix(i, j) += 
+                    scalar_product(fe_values[velocity].value(i, q),
+                                   fe_values[velocity].value(j, q)) /
+                    deltat * fe_values.JxW(q);
+
+                  // A*theta                 
+                  cell_lhs_matrix(i, j) +=
+                    nu * theta * 
                     scalar_product(fe_values[velocity].gradient(i, q),
                                    fe_values[velocity].gradient(j, q)) *
                     fe_values.JxW(q);
 
-                  // Pressure term in the momentum equation.    B
-                  cell_matrix(i, j) -= fe_values[velocity].divergence(i, q) *
-                                       fe_values[pressure].value(j, q) *
-                                       fe_values.JxW(q);
+                  // Pressure term in the momentum equation.
+                  cell_lhs_matrix(i, j) -= fe_values[velocity].divergence(i, q) *
+                                           fe_values[pressure].value(j, q) *
+                                           fe_values.JxW(q);
 
-                  // Pressure term in the continuity equation.  B^T 
-                  cell_matrix(i, j) -= fe_values[velocity].divergence(j, q) *
-                                       fe_values[pressure].value(i, q) *
-                                       fe_values.JxW(q);
+                  // Pressure term in the continuity equation.
+                  cell_lhs_matrix(i, j) -= fe_values[velocity].divergence(j, q) *
+                                           fe_values[pressure].value(i, q) *
+                                           fe_values.JxW(q);
 
-                  // Pressure mass matrix.    //   ??????
+                  // M/deltaT
+                  cell_rhs_matrix(i, j) += 
+                    scalar_product(fe_values[velocity].value(i, q),
+                                   fe_values[velocity].value(j, q)) /
+                    deltat * fe_values.JxW(q);
+
+                  // A*(1-theta)               
+                  cell_rhs_matrix(i, j) +=
+                    nu * (1.0 - theta) * 
+                    scalar_product(fe_values[velocity].gradient(i, q),
+                                   fe_values[velocity].gradient(j, q)) *
+                    fe_values.JxW(q);
+
+                  // Pressure mass matrix  PRECONDITIONING
                   cell_pressure_mass_matrix(i, j) +=
-                    fe_values[pressure].value(i, q) *
-                    fe_values[pressure].value(j, q) / nu * fe_values.JxW(q);
+                  fe_values[pressure].value(i, q) *
+                  fe_values[pressure].value(j, q) / nu * fe_values.JxW(q);
                 }
             }
         }
+        cell->get_dof_indices(dof_indices);
 
-      // Boundary integral for Neumann BCs.
-      //if (cell->at_boundary())
-      //  {
-      //    for (unsigned int f = 0; f < cell->n_faces(); ++f)
-      //      {
-      //        if (cell->face(f)->at_boundary() &&
-      //            cell->face(f)->boundary_id() == 5) // 2 -> out
-      //          {
-      //            fe_face_values.reinit(cell, f);
-//
-      //            for (unsigned int q = 0; q < n_q_face; ++q)
-      //              {
-      //                for (unsigned int i = 0; i < dofs_per_cell; ++i)
-      //                  {
-      //                    cell_rhs(i) +=
-      //                      -p_out *
-      //                      scalar_product(fe_face_values.normal_vector(q),
-      //                                     fe_face_values[velocity].value(i,
-      //                                                                    q)) *
-      //                      fe_face_values.JxW(q);
-      //                  }
-      //              }
-      //          }
-      //      }
-      //  }
-
-      cell->get_dof_indices(dof_indices);
-
-      mass_matrix.add(dof_indices, cell_mass_matrix);
-      system_matrix.add(dof_indices, cell_matrix);
-
-      //system_rhs.add(dof_indices, cell_rhs);
-
+        lhs_matrix.add(dof_indices, cell_lhs_matrix);
+        rhs_matrix.add(dof_indices, cell_rhs_matrix);
       pressure_mass.add(dof_indices, cell_pressure_mass_matrix);
     }
 
-  system_matrix.compress(VectorOperation::add);
-  pressure_mass.compress(VectorOperation::add);
-  mass_matrix.compress(VectorOperation::add);
-  //system_rhs.compress(VectorOperation::add);
-  
-  //DUBBI
-
-  // We build the matrix on the left-hand side of the algebraic problem (the one
-  // that we'll invert at each timestep).
-  lhs_matrix.copy_from(mass_matrix);
-  lhs_matrix.add(theta, system_matrix);
-
-  // We build the matrix on the right-hand side (the one that multiplies the old
-  // solution un).
-  rhs_matrix.copy_from(mass_matrix);
-  rhs_matrix.add(-(1.0 - theta), system_matrix);
-
-  // Dirichlet boundary conditions.
-//   {
-//     std::map<types::global_dof_index, double>           boundary_values;
-//     std::map<types::boundary_id, const Function<dim> *> boundary_functions;
-
-//     // We interpolate first the inlet velocity condition alone, then the wall
-//     // condition alone, so that the latter "win" over the former where the two
-//     // boundaries touch.
-//     boundary_functions[0] = &inlet_velocity;
-//     VectorTools::interpolate_boundary_values(dof_handler,
-//                                              boundary_functions,
-//                                              boundary_values,
-//                                              ComponentMask(
-//                                                {true, true, true, false}));
-
-//     boundary_functions.clear();
-//     Functions::ZeroFunction<dim> zero_function(dim + 1);
-//     boundary_functions[1] = &zero_function;
-//     boundary_functions[2] = &zero_function;
-//     boundary_functions[3] = &zero_function;
-//     boundary_functions[4] = &zero_function;
-//     VectorTools::interpolate_boundary_values(dof_handler,
-//                                              boundary_functions,
-//                                              boundary_values,
-//                                              ComponentMask(
-//                                                {true, true, true, false}));
-
-//     MatrixTools::apply_boundary_values(
-//       boundary_values, system_matrix, solution, system_rhs, false);
-//   }
+    lhs_matrix.compress(VectorOperation::add);
+    rhs_matrix.compress(VectorOperation::add);
+    pressure_mass.compress(VectorOperation::add);
 }
 
 void
-Stokes::assemble_rhs(const double &time)
+Stokes::assemble_time_dependent()
 {
   pcout << "===============================================" << std::endl;
   pcout << "Assembling the rhs" << std::endl;
@@ -368,9 +318,15 @@ Stokes::assemble_rhs(const double &time)
   std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
 
   system_rhs = 0.0;
+  system_matrix = 0.0;
 
+
+  FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
   FEValuesExtractors::Vector velocity(0);
   FEValuesExtractors::Scalar pressure(dim);
+
+  std::vector<Tensor<1, dim>> velocity_loc(n_q);
+  std::vector<Tensor<2, dim>> velocity_gradient_loc(n_q);
 
   for (const auto &cell : dof_handler.active_cell_iterators())
     {
@@ -379,22 +335,40 @@ Stokes::assemble_rhs(const double &time)
         
       fe_values.reinit(cell);
 
+      cell_matrix = 0.0;
       cell_rhs = 0.0;
 
       for (unsigned int q = 0; q < n_q; ++q)
         {
-          Vector<double> forcing_term_new_loc(dim);
+            //Non Linear Term
+           for (unsigned int i = 0; i < dofs_per_cell; ++i)
+            {
+              for (unsigned int j = 0; j < dofs_per_cell; ++j)
+                { 
+                  //Non-linear term
+                  // cell_matrix(i, j) += 0.5 * velocity_loc[q] * fe_values[velocity].gradient(j, q) * fe_values[velocity].value(i, q) *
+                  //                      fe_values.JxW(q);
+                  // cell_matrix(i, j) += 0.5 * present_velocity_divergence * fe_values[velocity].value(j, q) * fe_values[velocity].value(i, q) *
+                  //                      fe_values.JxW(q);
+
+                  cell_matrix(i, j) +=  velocity_loc[q] * fe_values[velocity].gradient(j, q) 
+                  * fe_values[velocity].value(i, q) *
+                                       fe_values.JxW(q);
+
+                                                   
+                }
+            }
+          
+            Vector<double> forcing_term_new_loc(dim);
             Vector<double> forcing_term_old_loc(dim);
 
             forcing_term.set_time(time);
             forcing_term.vector_value(fe_values.quadrature_point(q),
                                       forcing_term_new_loc);
 
-
             forcing_term.set_time(time - deltat);
             forcing_term.vector_value(fe_values.quadrature_point(q),
                                       forcing_term_old_loc);
-
 
             Tensor<1, dim> forcing_term_tensor_new;
             Tensor<1, dim> forcing_term_tensor_old;
@@ -406,13 +380,15 @@ Stokes::assemble_rhs(const double &time)
 
             for (unsigned int i = 0; i < dofs_per_cell; ++i)
               {
+                
                 // Forcing term.
                 cell_rhs(i) += scalar_product(theta  * forcing_term_tensor_new +
                                        (1.0 - theta) * forcing_term_tensor_old,
                                               fe_values[velocity].value(i, q)) *
                               fe_values.JxW(q);
               }
-          }
+          
+        }
 
           if (cell->at_boundary())
           {
@@ -446,41 +422,71 @@ Stokes::assemble_rhs(const double &time)
 
     system_rhs.compress(VectorOperation::add);
 
+  // rhs = (M/deltaT + A*(1-theta))*u_n + (1-theta)*F(t_n) + theta*F(t_n+1) 
     rhs_matrix.vmult_add(system_rhs, solution_owned);
 
-    // Dirichlet boundary conditions. 
-    {
-      std::map<types::global_dof_index, double>           boundary_values;
-      std::map<types::boundary_id, const Function<dim> *> boundary_functions;
+// Dirichlet boundary conditions.
+  {
+    std::map<types::global_dof_index, double>           boundary_values;
+    std::map<types::boundary_id, const Function<dim> *> boundary_functions;
+    Functions::ZeroFunction<dim> zero_function(dim + 1);
 
-      // We interpolate first the inlet velocity condition alone, then the wall
-      // condition alone, so that the latter "win" over the former where the two
-      // boundaries touch.
-      boundary_functions[0] = &inlet_velocity;
-      //boundary_functions[1] = &inlet_velocity;
-      VectorTools::interpolate_boundary_values(dof_handler,
-                                              boundary_functions,
-                                              boundary_values,
-                                              ComponentMask(
-                                                {true, true, true, false}));
+    // Inflow
+    inlet_velocity.set_time(time);
+    boundary_functions[0] = &inlet_velocity;
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                             boundary_functions,
+                                             boundary_values,
+                                             ComponentMask(
+                                               {true, true, true, false}));
+    boundary_functions.clear();
 
-      boundary_functions.clear();
-      Functions::ZeroFunction<dim> zero_function(dim + 1);
-      boundary_functions[5] = &zero_function;
-      boundary_functions[2] = &zero_function;
-      boundary_functions[3] = &zero_function;
-      boundary_functions[4] = &zero_function;
-      VectorTools::interpolate_boundary_values(dof_handler,
-                                              boundary_functions,
-                                              boundary_values,
-                                              ComponentMask(
-                                                {true, true, true, false}));
+    // Cylinder
+    boundary_functions[6] = &zero_function;
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                             boundary_functions,
+                                             boundary_values,
+                                             ComponentMask(
+                                               {true, true, true, false}));
+    boundary_functions.clear();
 
-      MatrixTools::apply_boundary_values(
-        boundary_values, lhs_matrix, solution, system_rhs, false);
-    }
+    // Up/Down
+    boundary_functions[2] = &zero_function;
+    boundary_functions[4] = &zero_function;
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                             boundary_functions,
+                                             boundary_values,
+                                             ComponentMask(
+                                               {false, true, false, false})); 
+    boundary_functions.clear();
 
-}
+    // Left/Right
+    boundary_functions[3] = &zero_function;
+    boundary_functions[5] = &zero_function;
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                             boundary_functions,
+                                             boundary_values,
+                                             ComponentMask(
+                                               {false, false, true, false})); 
+
+    // Boundary conditions on all walls for tunnel test case to test drag and lift coeff
+    // boundary_functions[2] = &zero_function;
+    // boundary_functions[4] = &zero_function;
+    // boundary_functions[3] = &zero_function;
+    // boundary_functions[5] = &zero_function;    
+    // VectorTools::interpolate_boundary_values(dof_handler,
+    //                                          boundary_functions,
+    //                                          boundary_values,
+    //                                          ComponentMask(
+    //                                            {true, true, true, false}));
+
+    boundary_functions.clear();
+
+    MatrixTools::apply_boundary_values(
+      boundary_values, system_matrix, solution, system_rhs, false);
+  }
+}   
+
 
 
 void
@@ -514,8 +520,7 @@ void
 Stokes::solve()
 {
   
-  assemble_matrices();
-
+  assemble_constant_terms();
   pcout << "===============================================" << std::endl;
 
   // Apply the initial condition.
@@ -532,17 +537,17 @@ Stokes::solve()
   }
 
   unsigned int time_step = 0;
-  double       time      = 0;
+  time      = 0.0;
 
   while (time < T)
-    {
+    {  
       time += deltat;
       ++time_step;
 
       pcout << "n = " << std::setw(3) << time_step << ", t = " << std::setw(5)
             << time << ":" << std::flush;
 
-      assemble_rhs(time);
+      assemble_time_dependent();
       solve_time_step();
       output(time_step, time);
     }
