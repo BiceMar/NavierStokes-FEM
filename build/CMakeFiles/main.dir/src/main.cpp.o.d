@@ -1,7 +1,7 @@
-CMakeFiles/lab-09.dir/src/Stokes.cpp.o: \
- /home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3/src/Stokes.cpp \
+CMakeFiles/main.dir/src/main.cpp.o: \
+ /home/riccardoselis/HPC_Ubuntu/NMPDE/project/nmpde-project3/src/main.cpp \
  /u/sw/toolchains/gcc-glibc/11.2.0/prefix/include/stdc-predef.h \
- /home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3/src/Stokes.hpp \
+ /home/riccardoselis/HPC_Ubuntu/NMPDE/project/nmpde-project3/src/NavierStokes.hpp \
  /u/sw/toolchains/gcc-glibc/11.2.0/pkgs/dealii/9.3.1/include/deal.II/base/conditional_ostream.h \
  /u/sw/toolchains/gcc-glibc/11.2.0/pkgs/dealii/9.3.1/include/deal.II/base/config.h \
  /u/sw/toolchains/gcc-glibc/11.2.0/base/include/mpi.h \

@@ -57,23 +57,13 @@ RM = /u/sw/toolchains/gcc-glibc/11.2.0/base/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3
+CMAKE_SOURCE_DIR = /home/riccardoselis/HPC_Ubuntu/NMPDE/project/nmpde-project3
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3/build
+CMAKE_BINARY_DIR = /home/riccardoselis/HPC_Ubuntu/NMPDE/project/nmpde-project3/build
 
 #=============================================================================
 # Targets provided globally by CMake.
-
-# Special rule for the target edit_cache
-edit_cache:
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "No interactive CMake dialog available..."
-	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/cmake -E echo No\ interactive\ CMake\ dialog\ available.
-.PHONY : edit_cache
-
-# Special rule for the target edit_cache
-edit_cache/fast: edit_cache
-.PHONY : edit_cache/fast
 
 # Special rule for the target rebuild_cache
 rebuild_cache:
@@ -85,11 +75,21 @@ rebuild_cache:
 rebuild_cache/fast: rebuild_cache
 .PHONY : rebuild_cache/fast
 
+# Special rule for the target edit_cache
+edit_cache:
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "No interactive CMake dialog available..."
+	/u/sw/toolchains/gcc-glibc/11.2.0/base/bin/cmake -E echo No\ interactive\ CMake\ dialog\ available.
+.PHONY : edit_cache
+
+# Special rule for the target edit_cache
+edit_cache/fast: edit_cache
+.PHONY : edit_cache/fast
+
 # The main all target
 all: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3/build/CMakeFiles /home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3/build//CMakeFiles/progress.marks
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/riccardoselis/HPC_Ubuntu/NMPDE/project/nmpde-project3/build/CMakeFiles /home/riccardoselis/HPC_Ubuntu/NMPDE/project/nmpde-project3/build//CMakeFiles/progress.marks
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 all
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3/build/CMakeFiles 0
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/riccardoselis/HPC_Ubuntu/NMPDE/project/nmpde-project3/build/CMakeFiles 0
 .PHONY : all
 
 # The main clean target
@@ -117,65 +117,65 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named lab-09
+# Target rules for targets named main
 
 # Build rule for target.
-lab-09: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 lab-09
-.PHONY : lab-09
+main: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 main
+.PHONY : main
 
 # fast build rule for target.
-lab-09/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/lab-09.dir/build.make CMakeFiles/lab-09.dir/build
-.PHONY : lab-09/fast
+main/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/build
+.PHONY : main/fast
 
-src/Stokes.o: src/Stokes.cpp.o
-.PHONY : src/Stokes.o
-
-# target to build an object file
-src/Stokes.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/lab-09.dir/build.make CMakeFiles/lab-09.dir/src/Stokes.cpp.o
-.PHONY : src/Stokes.cpp.o
-
-src/Stokes.i: src/Stokes.cpp.i
-.PHONY : src/Stokes.i
-
-# target to preprocess a source file
-src/Stokes.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/lab-09.dir/build.make CMakeFiles/lab-09.dir/src/Stokes.cpp.i
-.PHONY : src/Stokes.cpp.i
-
-src/Stokes.s: src/Stokes.cpp.s
-.PHONY : src/Stokes.s
-
-# target to generate assembly for a file
-src/Stokes.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/lab-09.dir/build.make CMakeFiles/lab-09.dir/src/Stokes.cpp.s
-.PHONY : src/Stokes.cpp.s
-
-src/lab-09.o: src/lab-09.cpp.o
-.PHONY : src/lab-09.o
+src/NavierStokes.o: src/NavierStokes.cpp.o
+.PHONY : src/NavierStokes.o
 
 # target to build an object file
-src/lab-09.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/lab-09.dir/build.make CMakeFiles/lab-09.dir/src/lab-09.cpp.o
-.PHONY : src/lab-09.cpp.o
+src/NavierStokes.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/src/NavierStokes.cpp.o
+.PHONY : src/NavierStokes.cpp.o
 
-src/lab-09.i: src/lab-09.cpp.i
-.PHONY : src/lab-09.i
+src/NavierStokes.i: src/NavierStokes.cpp.i
+.PHONY : src/NavierStokes.i
 
 # target to preprocess a source file
-src/lab-09.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/lab-09.dir/build.make CMakeFiles/lab-09.dir/src/lab-09.cpp.i
-.PHONY : src/lab-09.cpp.i
+src/NavierStokes.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/src/NavierStokes.cpp.i
+.PHONY : src/NavierStokes.cpp.i
 
-src/lab-09.s: src/lab-09.cpp.s
-.PHONY : src/lab-09.s
+src/NavierStokes.s: src/NavierStokes.cpp.s
+.PHONY : src/NavierStokes.s
 
 # target to generate assembly for a file
-src/lab-09.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/lab-09.dir/build.make CMakeFiles/lab-09.dir/src/lab-09.cpp.s
-.PHONY : src/lab-09.cpp.s
+src/NavierStokes.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/src/NavierStokes.cpp.s
+.PHONY : src/NavierStokes.cpp.s
+
+src/main.o: src/main.cpp.o
+.PHONY : src/main.o
+
+# target to build an object file
+src/main.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/src/main.cpp.o
+.PHONY : src/main.cpp.o
+
+src/main.i: src/main.cpp.i
+.PHONY : src/main.i
+
+# target to preprocess a source file
+src/main.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/src/main.cpp.i
+.PHONY : src/main.cpp.i
+
+src/main.s: src/main.cpp.s
+.PHONY : src/main.s
+
+# target to generate assembly for a file
+src/main.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/src/main.cpp.s
+.PHONY : src/main.cpp.s
 
 # Help Target
 help:
@@ -185,13 +185,13 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
-	@echo "... lab-09"
-	@echo "... src/Stokes.o"
-	@echo "... src/Stokes.i"
-	@echo "... src/Stokes.s"
-	@echo "... src/lab-09.o"
-	@echo "... src/lab-09.i"
-	@echo "... src/lab-09.s"
+	@echo "... main"
+	@echo "... src/NavierStokes.o"
+	@echo "... src/NavierStokes.i"
+	@echo "... src/NavierStokes.s"
+	@echo "... src/main.o"
+	@echo "... src/main.i"
+	@echo "... src/main.s"
 .PHONY : help
 
 

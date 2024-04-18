@@ -427,6 +427,9 @@ protected:
   // (M / deltat - (1 - theta) * A)
   TrilinosWrappers::BlockSparseMatrix rhs_matrix;
 
+  // A/deltat + A B^T; -B 0
+  TrilinosWrappers::BlockSparseMatrix constant_matrix;
+
   // Pressure mass matrix, needed for preconditioning. We use a block matrix for
   // convenience, but in practice we only look at the pressure-pressure block.
   //TrilinosWrappers::BlockSparseMatrix pressure_mass;

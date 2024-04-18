@@ -187,6 +187,7 @@ NavierStokes::assemble_time_independent()
 
   lhs_matrix = 0.0;
   rhs_matrix = 0.0;
+  //constant_matrix = 0.0;
   //pressure_mass = 0.0;
 
   FEValuesExtractors::Vector velocity(0);
@@ -298,6 +299,7 @@ NavierStokes::assemble_time_independent()
 
       lhs_matrix.add(dof_indices, cell_lhs_matrix);
       rhs_matrix.add(dof_indices, cell_rhs_matrix);
+      //constant_matrix.add(dof_indices, cell_lhs_matrix);
       //pressure_mass.add(dof_indices, cell_pressure_mass_matrix);
 
       
@@ -305,6 +307,7 @@ NavierStokes::assemble_time_independent()
 
   system_matrix.compress(VectorOperation::add);
   system_rhs.compress(VectorOperation::add);
+  //constant_matrix.compress(VectorOperation::add);
   //pressure_mass.compress(VectorOperation::add);
   
 }
@@ -349,6 +352,74 @@ NavierStokes::assemble_system()
 
   std::vector<Tensor<1, dim>> velocity_loc(n_q);
   std::vector<Tensor<2, dim>> velocity_gradient_loc(n_q);
+
+
+  // Assemble the nonlinear term using skew-symmetric form.
+  {
+    FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
+
+    std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
+
+    // Copy the constant term.
+    system_matrix.copy_from(lhs_matrix);
+
+    // Declare a vector which will contain the values of the old solution at
+    // quadrature points.
+    std::vector<Tensor<1, dim>> old_solution_values(n_q);
+
+    FEValuesExtractors::Vector velocity(0);
+    FEValuesExtractors::Scalar pressure(dim);
+
+    // Declare tensors to store the old solution value at a set quadrature
+    // point and part of the nonlinear term.
+    Tensor<1, dim> local_old_solution_value;
+    Tensor<1, dim> nonlinear_term;
+    Tensor<1, dim> transpose_term;
+
+    for (const auto &cell : dof_handler.active_cell_iterators()) {
+      if (!cell->is_locally_owned()) continue;
+
+      fe_values.reinit(cell);
+
+      // Calculate the value of the previous solution at quadrature points.
+      fe_values[velocity].get_function_values(solution, old_solution_values);
+
+      cell_matrix = 0.0;
+
+      for (unsigned int q = 0; q < n_q; ++q) {
+        for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+          for (unsigned int j = 0; j < dofs_per_cell; ++j) {
+            // Reset the nonlinear and transpose terms.
+            nonlinear_term = 0.0;
+            transpose_term = 0.0;
+
+            for (unsigned int k = 0; k < dim; k++) {
+              for (unsigned int l = 0; l < dim; l++) {
+                // Calculate (u . nabla) u.
+                nonlinear_term[k] += old_solution_values[q][l] *
+                                     fe_values[velocity].gradient(j, q)[k][l];
+                // Calculate (nabla u)^T u.
+                transpose_term[k] += old_solution_values[q][k] *
+                                     fe_values[velocity].gradient(j, q)[l][k];
+              }
+            }
+
+            // Add the skew-symmetric term (u . nabla) u + (nabla u)^T u to the matrix.
+            cell_matrix(i, j) +=
+                0.5 * (scalar_product(nonlinear_term, fe_values[velocity].value(i, q)) +
+                       scalar_product(transpose_term, fe_values[velocity].value(i, q))) *
+                fe_values.JxW(q);
+          }
+        }
+      }
+
+      cell->get_dof_indices(dof_indices);
+
+      system_matrix.add(dof_indices, cell_matrix);
+    }
+
+    system_matrix.compress(VectorOperation::add);
+  }
 
   for (const auto &cell : dof_handler.active_cell_iterators())
   {

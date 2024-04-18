@@ -8,8 +8,8 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "/home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3/src/Stokes.cpp" "CMakeFiles/lab-09.dir/src/Stokes.cpp.o" "gcc" "CMakeFiles/lab-09.dir/src/Stokes.cpp.o.d"
-  "/home/riccardoselis/HPC_Ubuntu/NMPDE/nmpde-project3/src/lab-09.cpp" "CMakeFiles/lab-09.dir/src/lab-09.cpp.o" "gcc" "CMakeFiles/lab-09.dir/src/lab-09.cpp.o.d"
+  "/home/riccardoselis/HPC_Ubuntu/NMPDE/project/nmpde-project3/src/NavierStokes.cpp" "CMakeFiles/main.dir/src/NavierStokes.cpp.o" "gcc" "CMakeFiles/main.dir/src/NavierStokes.cpp.o.d"
+  "/home/riccardoselis/HPC_Ubuntu/NMPDE/project/nmpde-project3/src/main.cpp" "CMakeFiles/main.dir/src/main.cpp.o" "gcc" "CMakeFiles/main.dir/src/main.cpp.o.d"
   )
 
 # Targets to which this target links.
