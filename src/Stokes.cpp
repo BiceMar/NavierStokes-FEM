@@ -136,16 +136,20 @@ Stokes::setup()
               coupling[c][d] = DoFTools::none;
           }
       }
-    TrilinosWrappers::BlockSparsityPattern sparsity_pressure_mass(
-      block_owned_dofs, MPI_COMM_WORLD);
-    DoFTools::make_sparsity_pattern(dof_handler,
-                                    coupling,
-                                    sparsity_pressure_mass);
-    sparsity_pressure_mass.compress();
+    // TrilinosWrappers::BlockSparsityPattern sparsity_pressure_mass(
+    //   block_owned_dofs, MPI_COMM_WORLD);
+    // DoFTools::make_sparsity_pattern(dof_handler,
+    //                                 coupling,
+    //                                 sparsity_pressure_mass);
+    // sparsity_pressure_mass.compress();
 
     pcout << "  Initializing the matrices" << std::endl;
     system_matrix.reinit(sparsity);
-    pressure_mass.reinit(sparsity_pressure_mass);
+    //pressure_mass.reinit(sparsity_pressure_mass);
+
+    system_matrix.reinit(sparsity);
+    rhs_matrix.reinit(sparsity);
+    lhs_matrix.reinit(sparsity);
 
     pcout << "  Initializing the system right-hand side" << std::endl;
     system_rhs.reinit(block_owned_dofs, MPI_COMM_WORLD);
@@ -177,16 +181,18 @@ Stokes::assemble_time_independent()
 
   FullMatrix<double> cell_lhs_matrix(dofs_per_cell, dofs_per_cell);
   FullMatrix<double> cell_rhs_matrix(dofs_per_cell, dofs_per_cell);
-  FullMatrix<double> cell_pressure_mass_matrix(dofs_per_cell, dofs_per_cell);
+  //FullMatrix<double> cell_pressure_mass_matrix(dofs_per_cell, dofs_per_cell);
 
   std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
 
   lhs_matrix = 0.0;
   rhs_matrix = 0.0;
-  pressure_mass = 0.0;
+  //pressure_mass = 0.0;
 
   FEValuesExtractors::Vector velocity(0);
   FEValuesExtractors::Scalar pressure(dim);
+
+  //std::cout << "Assembling the system check" << std::endl;
 
   for (const auto &cell : dof_handler.active_cell_iterators())
     {
@@ -197,21 +203,22 @@ Stokes::assemble_time_independent()
 
       cell_lhs_matrix = 0.0;
       cell_rhs_matrix = 0.0;
-      cell_pressure_mass_matrix = 0.0;
+      //cell_pressure_mass_matrix = 0.0;
 
       for (unsigned int q = 0; q < n_q; ++q)
         {
-          Vector<double> forcing_term_loc(dim);
-          forcing_term.vector_value(fe_values.quadrature_point(q),
-                                    forcing_term_loc);
-          Tensor<1, dim> forcing_term_tensor;
-          for (unsigned int d = 0; d < dim; ++d)
-            forcing_term_tensor[d] = forcing_term_loc[d];
+          // Vector<double> forcing_term_loc(dim);
+          // forcing_term.vector_value(fe_values.quadrature_point(q),
+          //                           forcing_term_loc);
+          // Tensor<1, dim> forcing_term_tensor;
+          // for (unsigned int d = 0; d < dim; ++d)
+          //   forcing_term_tensor[d] = forcing_term_loc[d];
 
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {
               for (unsigned int j = 0; j < dofs_per_cell; ++j)
                 {
+                  
                   // Viscosity term (A * Theta)
                   cell_lhs_matrix(i, j) +=
                     nu * theta *
@@ -258,6 +265,8 @@ Stokes::assemble_time_independent()
         }
       }
 
+      
+
       // // Boundary integral for Neumann BCs.
       // if (cell->at_boundary())
       //   {
@@ -283,19 +292,23 @@ Stokes::assemble_time_independent()
       //       }
       //   }
 
+
+
       cell->get_dof_indices(dof_indices);
 
       lhs_matrix.add(dof_indices, cell_lhs_matrix);
       rhs_matrix.add(dof_indices, cell_rhs_matrix);
-      pressure_mass.add(dof_indices, cell_pressure_mass_matrix);
+      //pressure_mass.add(dof_indices, cell_pressure_mass_matrix);
+
+      
     }
 
   system_matrix.compress(VectorOperation::add);
   system_rhs.compress(VectorOperation::add);
-  pressure_mass.compress(VectorOperation::add);
-
+  //pressure_mass.compress(VectorOperation::add);
   
 }
+
 
 
 
@@ -323,13 +336,13 @@ Stokes::assemble_system()
 
   FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
   Vector<double>     cell_rhs(dofs_per_cell);
-  FullMatrix<double> cell_Fp_matrix(dofs_per_cell, dofs_per_cell);
+  //FullMatrix<double> cell_Fp_matrix(dofs_per_cell, dofs_per_cell);
 
   std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
 
   system_matrix = 0.0;
   system_rhs    = 0.0;
-  Fp_matrix = 0.0;
+  //Fp_matrix = 0.0;
 
   FEValuesExtractors::Vector velocity(0);
   FEValuesExtractors::Scalar pressure(dim);
@@ -491,7 +504,7 @@ Stokes::solve_time_step()
 {
   pcout << "===============================================" << std::endl;
 
-  SolverControl solver_control(20000, 1e-6 * system_rhs.l2_norm());
+  SolverControl solver_control(20000, 1e-3 * system_rhs.l2_norm());
 
   SolverGMRES<TrilinosWrappers::MPI::BlockVector> solver(solver_control);
 
@@ -499,10 +512,14 @@ Stokes::solve_time_step()
   // preconditioner.initialize(system_matrix.block(0, 0),
   //                           pressure_mass.block(1, 1));
 
-  PreconditionBlockTriangular preconditioner;
-  preconditioner.initialize(system_matrix.block(0, 0),
-                            pressure_mass.block(1, 1),
-                            system_matrix.block(1, 0));
+  PreconditionIdentity preconditioner;
+
+  // PreconditionBlockTriangular preconditioner;
+  // preconditioner.initialize(system_matrix.block(0, 0),
+  //                           pressure_mass.block(1, 1),
+  //                           system_matrix.block(1, 0));
+
+
 
   pcout << "Solving the linear system" << std::endl;
   solver.solve(system_matrix, solution_owned, system_rhs, preconditioner);
