@@ -82,11 +82,11 @@ public:
       : Function<dim>(dim + 1)
     {}
 
-    /* double 
-    uMean() const
+    double 
+    mean_value() const
     {
       return 4.0/9.0 * Um;
-    } */
+    } 
 
     double
     maxVelocity() const
@@ -359,6 +359,13 @@ public:
   void
   output(const unsigned int &time_step) const;
 
+  // Calculate coefficient.
+  void
+  calculate_coefficients();
+
+  // Write coefficients on file.
+  void
+  write_coefficients_on_files();
 
 protected:
   // MPI parallel. /////////////////////////////////////////////////////////////
@@ -380,6 +387,15 @@ protected:
   // Outlet pressure [Pa].
   const double p_out = 10.0;
 
+  // density
+  const double rho = 1.0;
+
+  // Cylinder diameter.
+  const double cylinder_diameter = 0.1;
+
+  // Cylinder height 
+  const double cylinder_height = 0.41;
+  
   // Forcing term.
   ForcingTerm forcing_term;
 
@@ -405,6 +421,16 @@ protected:
 
   // Theta parameter of the theta method.
   const double theta;
+  
+  // Vector of all the drag coefficients.
+  std::vector<double> drag_coefficients; 
+  
+  // Vector of all the drag coefficients
+  std::vector<double> lift_coefficients;
+
+  // Drag/Lift coefficient multiplicative constant.
+  const double constant_coeff = 2.0 / (rho * inlet_velocity.mean_value() * inlet_velocity.mean_value() * cylinder_diameter * cylinder_height); 
+
 
 //----------------------------------------------------------------------------
 
