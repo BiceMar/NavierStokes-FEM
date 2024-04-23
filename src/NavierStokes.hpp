@@ -81,8 +81,9 @@ public:
     vector_value(const Point<dim> &p, Vector<double> &values) const override
     { 
       // TODO: add other cases
-      values[0] = 16.0 * Um * p[1] * p[2] *(H - p[1]) * (H - p[2]) / (H * H * H * H );
+      //values[0] = 16.0 * Um * p[1] * p[2] *(H - p[1]) * (H - p[2]) / (H * H * H * H );
 
+      values[0] = 16 * Um * p[1] * p[2] *(H - p[1]) * (H - p[2]) * std::sin(M_PI * get_time() / 8.0) / (std::pow(H, 4));
       for (unsigned int i = 1; i < dim + 1; ++i)
         values[i] = 0.0;
     }
@@ -92,7 +93,9 @@ public:
     {
       if (component == 0)
       {
-         return 16.0 * Um * p[1] * p[2] *(H - p[1]) * (H - p[2]) / (H * H * H * H );       
+         //return 16.0 * Um * p[1] * p[2] *(H - p[1]) * (H - p[2]) / (H * H * H * H );       
+      
+        return 16 * Um * p[1] * p[2] *(H - p[1]) * (H - p[2]) * std::sin(M_PI * get_time() / 8.0) / (std::pow(H, 4));
       }
       else
       {
@@ -105,7 +108,7 @@ public:
     // double Um = 0.45;
     // Case 2.
     //double Um = 2.25;
-    double Um = 1.00;
+    double Um = 2.25;
     double H = 0.41;
   };
 
@@ -130,7 +133,6 @@ public:
       return 0.0;
     }
   };
-
 
   // Since we're working with block matrices, we need to make our own
   // preconditioner class. A preconditioner class can be any class that exposes
@@ -334,10 +336,10 @@ protected:
   // Problem definition. ///////////////////////////////////////////////////////
 
   // Kinematic viscosity [m2/s].   v = 1.004e-6 m2/s
-  const double nu = 1;   
+  const double nu = 0.02;   
 
   // Outlet pressure [Pa].
-  const double p_out = 10;
+  const double p_out = 10.0;
 
   // Fluid density.
   const double rho = 1.0;

@@ -146,9 +146,9 @@ NavierStokes::setup()
 
     pcout << "  Initializing the matrices" << std::endl;
     system_matrix.reinit(sparsity);
-    pressure_mass.reinit(sparsity_pressure_mass);
     rhs_matrix.reinit(sparsity);
     lhs_matrix.reinit(sparsity);
+    pressure_mass.reinit(sparsity_pressure_mass);
 
     pcout << "  Initializing the system right-hand side" << std::endl;
     system_rhs.reinit(block_owned_dofs, MPI_COMM_WORLD);
@@ -212,14 +212,14 @@ NavierStokes::assemble_time_independent_matrices()
                                                           fe_values[velocity].value(j, q)) 
                                                           / deltat * fe_values.JxW(q);
                     
-                  // Pressure term in the momentum equation
+                  // Pressure term in the momentum equation (B^t)
                   cell_lhs_matrix(i, j) -= fe_values[velocity].divergence(i, q) *
                                        fe_values[pressure].value(j, q) *
                                        fe_values.JxW(q);
 
                   // TODO: check for the sign of the pressure term in the momentum equation.
 
-                  // Pressure term in the continuity equation.
+                  // Pressure term in the continuity equation. (-B)
                   cell_lhs_matrix(i, j) -= fe_values[velocity].divergence(j, q) *
                                        fe_values[pressure].value(i, q) *
                                        fe_values.JxW(q);
@@ -253,8 +253,8 @@ NavierStokes::assemble_time_independent_matrices()
 
     }
 
-  system_matrix.compress(VectorOperation::add);
-  system_rhs.compress(VectorOperation::add);
+  lhs_matrix.compress(VectorOperation::add);
+  rhs_matrix.compress(VectorOperation::add);
   pressure_mass.compress(VectorOperation::add);
   //constant_matrix.compress(VectorOperation::add);
   
@@ -281,7 +281,6 @@ NavierStokes::assemble_system()
                                    update_values | update_normal_vectors |
                                      update_JxW_values);
 
-
   FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
   Vector<double>     cell_rhs(dofs_per_cell);
 
@@ -296,36 +295,42 @@ NavierStokes::assemble_system()
   // needed for the calculation of coefficients
   std::vector<Tensor<1, dim>> velocity_loc(n_q);
   std::vector<Tensor<2, dim>> velocity_gradient_loc(n_q);
+  // Declare a vector which will contain the values of the old solution at
+  // quadrature points.
+  std::vector<Tensor<1, dim>> old_solution_values(n_q);
+  
+  // Declare tensors to store the old solution value at a set quadrature
+  // point and part of the nonlinear term.
+  Tensor<1, dim> local_old_solution_value;
+  Tensor<1, dim> nonlinear_term;
+  Tensor<1, dim> transpose_term;
 
-  // Assemble the nonlinear term using skew-symmetric form.
-  // TODO: try other rapresentations of the nonlinear convective term
+  // Copy the constant term.
+  //system_matrix.copy_from(lhs_matrix);
+
+  for (const auto &cell : dof_handler.active_cell_iterators())
   {
-    // Copy the constant term.
-    system_matrix.copy_from(lhs_matrix);
+    if (!cell->is_locally_owned())
+      continue;
 
-    // Declare a vector which will contain the values of the old solution at
-    // quadrature points.
-    std::vector<Tensor<1, dim>> old_solution_values(n_q);
+    fe_values.reinit(cell);
 
-    // Declare tensors to store the old solution value at a set quadrature
-    // point and part of the nonlinear term.
-    Tensor<1, dim> local_old_solution_value;
-    Tensor<1, dim> nonlinear_term;
-    Tensor<1, dim> transpose_term;
+    cell_matrix = 0.0;
+    cell_rhs    = 0.0;
 
-    for (const auto &cell : dof_handler.active_cell_iterators()) {
-      if (!cell->is_locally_owned()) continue;
+    fe_values[velocity].get_function_values(solution, velocity_loc);
+    fe_values[velocity].get_function_gradients(solution, velocity_gradient_loc);
+    fe_values[velocity].get_function_values(solution, old_solution_values);
 
-      fe_values.reinit(cell);
 
-      // Calculate the value of the previous solution at quadrature points.
-      fe_values[velocity].get_function_values(solution, old_solution_values);
-
-      cell_matrix = 0.0;
-
-      for (unsigned int q = 0; q < n_q; ++q) {
-        for (unsigned int i = 0; i < dofs_per_cell; ++i) {
-          for (unsigned int j = 0; j < dofs_per_cell; ++j) {
+    for (unsigned int q = 0; q < n_q; ++q)
+    {
+      for (unsigned int i = 0; i < dofs_per_cell; ++i)
+        {
+          // Assemble the nonlinear term using skew-symmetric form.
+          // TODO: try other rapresentations of the nonlinear convective term
+          for (unsigned j = 0; j < dofs_per_cell; j++)
+          {            
             // Reset the nonlinear and transpose terms.
             nonlinear_term = 0.0;
             transpose_term = 0.0;
@@ -345,47 +350,16 @@ NavierStokes::assemble_system()
             cell_matrix(i, j) +=
                 0.5 * (scalar_product(nonlinear_term, fe_values[velocity].value(i, q)) +
                        scalar_product(transpose_term, fe_values[velocity].value(i, q))) *
-                fe_values.JxW(q);
-          }
-        }
-      }
+                fe_values.JxW(q); 
 
-      cell->get_dof_indices(dof_indices);
 
-      system_matrix.add(dof_indices, cell_matrix);
-    }
+            
+            
+                                  
+          }  
 
-    system_matrix.compress(VectorOperation::add);
-  }
+          // Asseble the rhs 
 
-  // assemble
-  for (const auto &cell : dof_handler.active_cell_iterators())
-  {
-    if (!cell->is_locally_owned())
-      continue;
-
-    fe_values.reinit(cell);
-
-    cell_matrix = 0.0;
-    cell_rhs    = 0.0;
-
-    fe_values[velocity].get_function_values(solution, velocity_loc);
-    fe_values[velocity].get_function_gradients(solution, velocity_gradient_loc);
-
-    for (unsigned int q = 0; q < n_q; ++q)
-    {
-      for (unsigned int i = 0; i < dofs_per_cell; ++i)
-        {
-
-          for (unsigned j = 0; j < dofs_per_cell; j++)
-          {
-            // This is for the non linear term
-            // TODO: spostare qui il termine non lineare!
-            cell_matrix(i, j) += 0.0;
-
-          }    
-
-          // DUBBIO: non è meglio dichiararle fuori dal ciclo? 
           Vector<double> forcing_term_old_loc(dim);
           Vector<double> forcing_term_new_loc(dim);
           Tensor<1, dim> forcing_term_tensor_new;
@@ -413,7 +387,7 @@ NavierStokes::assemble_system()
                                         fe_values[velocity].value(i, q)) *
                         fe_values.JxW(q);
         }
-    }
+    }    
 
     // Neumann BCs.
     if (cell->at_boundary())
@@ -439,11 +413,13 @@ NavierStokes::assemble_system()
               }
           }
       }
+
       cell->get_dof_indices(dof_indices);
       system_rhs.add(dof_indices, cell_rhs); 
-      //system_matrix.add(dof_indices, cell_matrix); // NB: da decommentare nel momento in cui spostiamo il termine non lineare all'interno di questa sezione
+      system_matrix.add(dof_indices, cell_matrix);
       
   }
+
   system_matrix.compress(VectorOperation::add);
   system_rhs.compress(VectorOperation::add);
   
