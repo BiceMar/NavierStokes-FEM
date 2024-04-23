@@ -267,7 +267,7 @@ void
 NavierStokes::assemble_system()
 {
   pcout << "===============================================" << std::endl;
-  pcout << "Assembling the system  time step" << std::endl;
+  pcout << "Assembling the system time step" << std::endl;
   
   const unsigned int dofs_per_cell = fe->dofs_per_cell;
   const unsigned int n_q           = quadrature->size();
@@ -508,6 +508,8 @@ void NavierStokes::solve()
   VectorTools::interpolate(dof_handler, u_0, solution_owned);
   solution = solution_owned;
 
+  // calculate coefficients
+  calculate_coefficients();
 
   unsigned int time_step = 0;
 
@@ -521,8 +523,11 @@ void NavierStokes::solve()
 
     assemble_system();
     solve_time_step();
+    calculate_coefficients();
+    
     output(time_step);
   }
+  write_coefficients_on_files();
 }
 
 
@@ -561,5 +566,111 @@ void NavierStokes::output(const unsigned int &time_step) const
                                       MPI_COMM_WORLD);
 
   pcout << "Output written to " << output_file_name << std::endl;
+  pcout << "===============================================" << std::endl;
+}
+
+
+void NavierStokes::calculate_coefficients()
+{
+  pcout << "===============================================" << std::endl;
+  pcout << "Calcolo dei coefficienti" << std::endl;
+
+  const unsigned int n_q_face = quadrature_face->size();
+
+  FEFaceValues<dim> fe_values(*fe,
+                                   *quadrature_face,
+                                   update_values | update_gradients | update_normal_vectors |
+                                   update_JxW_values);
+
+  const double rho_nu = rho * nu;
+  
+  // Initialize variables to store drag and lift forces
+  double drag_force = 0.0;
+  double lift_force = 0.0;
+
+  // Set up extractors for velocity and pressure components
+  FEValuesExtractors::Vector velocity(0);
+  FEValuesExtractors::Scalar pression(dim);
+
+  for (const auto &cell : dof_handler.active_cell_iterators())
+  {
+    if (!cell->is_locally_owned() || !cell->at_boundary())
+      continue;
+
+    for (unsigned int q = 0; q < cell->n_faces(); ++q)
+    {
+      auto face = cell->face(q);
+      if (!face->at_boundary() || face->boundary_id() != 6)
+        continue;
+
+      // Reinitialize face values for the current face
+      fe_values.reinit(cell, q);
+
+      std::vector<double> pression_value_loc(n_q_face);
+      std::vector<Tensor<2, dim>> velocity_gradient_loc(n_q_face);
+      fe_values[pression].get_function_values(solution, pression_value_loc);
+      fe_values[velocity].get_function_gradients(solution, velocity_gradient_loc);
+
+      // Assuming the normal vector is constant across the face for optimization
+      Tensor<1, dim> normal_vector = -fe_values.normal_vector(0);
+
+      for (unsigned int q = 0; q < n_q_face; ++q)
+      {
+        Tensor<2, dim> fluid_pressure;
+        fluid_pressure[0][0] = pression_value_loc[q];
+        fluid_pressure[1][1] = pression_value_loc[q];
+
+        Tensor<1, dim> f = (rho_nu * velocity_gradient_loc[q] - fluid_pressure) * normal_vector * fe_values.JxW(q);
+        drag_force += f[0];
+        lift_force += f[1];
+      }
+    }
+  }
+
+  // Declare total variables to store the summed results
+  double total_drag = 0.0, total_lift = 0.0;
+
+  // Use MPI_Allreduce to sum the drag and lift forces across all processes, storing the result in all processes
+  MPI_Allreduce(&drag_force, &total_drag, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(&lift_force, &total_lift, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+  // Every process now has the total drag and lift forces and can compute the coefficients
+  drag_coefficients.push_back(constant_coeff * total_drag);
+  lift_coefficients.push_back(constant_coeff * total_lift);
+}
+
+void NavierStokes::write_coefficients_on_files()
+{
+  const unsigned int current_rank = Utilities::MPI::this_mpi_process(MPI_COMM_WORLD);
+
+  pcout << "===============================================" << std::endl;
+  pcout << "Writing coefficients on file" << std::endl;
+
+  if (current_rank == 0) // Only the master process writes to the files
+  {
+    std::ofstream drag_file("drag_coefficient.csv"), lift_file("lift_coefficient.csv");
+
+    if (drag_file && lift_file) // Check if files are successfully opened
+    {
+      // Write headers to both files
+      drag_file << "Time,DragCoefficient" << std::endl;
+      lift_file << "Time,LiftCoefficient" << std::endl;
+
+      // Write coefficients to files
+      for (unsigned int idx = 0; idx < drag_coefficients.size(); ++idx)
+      {
+        double time_point = idx * deltat; // Calculate the time point
+        drag_file << time_point << "," << drag_coefficients[idx] << std::endl;
+        lift_file << time_point << "," << lift_coefficients[idx] << std::endl;
+      }
+
+      pcout << "Drag and lift coefficients written to CSV files." << std::endl;
+    }
+    else
+    {
+      pcout << "Error opening output files!" << std::endl;
+    }
+  }
+
   pcout << "===============================================" << std::endl;
 }
