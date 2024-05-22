@@ -76,59 +76,47 @@ public:
   // three components, however, we may get an error message due to this function
   // being incompatible with the finite element space.
   class InletVelocity : public Function<dim>
-  {
-  public:
-    InletVelocity()
-      : Function<dim>(dim + 1)
+{
+public:
+    InletVelocity(int case_type = 1, double vel = 2.25)   // Default to case 1 if not specified
+        : Function<dim>(dim + 1), vel(vel), case_type(case_type) // Inizializza vel prima di case_type
     {}
 
-    double 
-    mean_value() const
-    {
-      return 4.0/9.0 * Um;
-    } 
-
-    double
-    maxVelocity() const
-    {
-      return 16 * Um;
+    double mean_value() const {
+        return vel; // [m/s]
+    }
+    double maxVelocity() const {
+        return 16 * vel;
     }
 
-    virtual void
-    vector_value(const Point<dim> &p, Vector<double> &values) const override
-    { 
-      // case 1
-      //values[0] = 16.0 * Um * p[1] * p[2] *(H - p[1]) * (H - p[2]) / (H * H * H * H );
-      
-      // case 2
-      values[0] = 16 * Um * p[1] * p[2] *(H - p[1]) * (H - p[2]) * std::sin(M_PI * get_time() / 8.0) / (std::pow(H, 4));
-      
-      for (unsigned int i = 1; i < dim + 1; ++i)
-        values[i] = 0.0;
+    virtual void vector_value(const Point<dim> &p, Vector<double> &values) const override {
+        if (case_type == 1) {
+            values[0] = 16.0 * vel * p[1] * p[2] *(H - p[1]) * (H - p[2]) / std::pow(H, 4);
+        } else {
+            values[0] = 16 * vel * p[1] * p[2] *(H - p[1]) * (H - p[2]) * std::sin(M_PI * get_time() / 8.0) / std::pow(H, 4);
+        }
+        
+        for (unsigned int i = 1; i < dim + 1; ++i)
+            values[i] = 0.0;
     }
 
-    virtual double
-    value(const Point<dim> &p, const unsigned int component = 0) const override
-    {
-      if (component == 0)
-      {
-        // case 1
-        //return 16.0 * Um * p[1] * p[2] *(H - p[1]) * (H - p[2]) / (H * H * H * H );       
-      
-        // case 2
-        return 16 * Um * p[1] * p[2] *(H - p[1]) * (H - p[2]) * std::sin(M_PI * get_time() / 8.0) / (std::pow(H, 4));
-          
-      }
-      else
-      {
-        return 0.0;
-      }
+    virtual double value(const Point<dim> &p, const unsigned int component = 0) const override {
+        if (component == 0) {
+            if (case_type == 1) {
+                return 16.0 * vel * p[1] * p[2] *(H - p[1]) * (H - p[2]) / std::pow(H, 4);
+            } else {
+                return 16 * vel * p[1] * p[2] *(H - p[1]) * (H - p[2]) * std::sin(M_PI * get_time() / 8.0) / std::pow(H, 4);
+            }
+        } else {
+            return 0.0;
+        }
     }
 
-  protected:
-    double Um = 2.25;
+public:
+    double vel = 2.25; // [m/s]
     double H = 0.41;
-  };
+    int case_type = 0; // Attributo per selezionare il caso per il calcolo
+};
 
 
   // Function for the initial condition.
@@ -159,7 +147,6 @@ public:
       return 0.0;
     }
   };
-
 
   // Since we're working with block matrices, we need to make our own
   // preconditioner class. A preconditioner class can be any class that exposes
@@ -317,28 +304,38 @@ public:
   // protected:
   // };
 
-
   // Setup system.
+  
   void
   setup();
 
   NavierStokes(const std::string &mesh_file_name_,
-               const unsigned int &degree_velocity_,
-               const unsigned int &degree_pressure_,
-               const double &_T,
-               const double &deltat_,
-               const double &theta_)
-    : mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD)),
-      mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD)),
-      pcout(std::cout, mpi_rank == 0),
-      mesh_file_name(mesh_file_name_),
-      degree_velocity(degree_velocity_),
-      degree_pressure(degree_pressure_),
-      T(_T),
-      deltat(deltat_),
-      theta(theta_),
-      mesh(MPI_COMM_WORLD) {}
-
+                           const unsigned int &degree_velocity_,
+                           const unsigned int &degree_pressure_,
+                           const double &_T,
+                           const double &deltat_,
+                           const double &theta_,
+                           double nu_,
+                           double p_out_,
+                           double rho_,
+                           int case_type_,
+                           double vel_)
+  : mesh_file_name(mesh_file_name_),
+    degree_velocity(degree_velocity_),
+    degree_pressure(degree_pressure_),
+    T(_T),
+    deltat(deltat_),
+    theta(theta_),
+    nu(nu_),
+    p_out(p_out_),
+    rho(rho_),
+    inlet_velocity(case_type_, vel_),
+    mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD)),
+    mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD)),
+    pcout(std::cout, mpi_rank == 0),
+    mesh(MPI_COMM_WORLD)
+    {
+    }
 
   // Assemble system. We also assemble the pressure mass matrix (needed for the
   // preconditioner).
@@ -368,7 +365,36 @@ public:
   write_coefficients_on_files();
 
 protected:
-  // MPI parallel. /////////////////////////////////////////////////////////////
+  
+  // Mesh file name.
+  const std::string mesh_file_name;
+ 
+  // Polynomial degree used for velocity.
+  const unsigned int degree_velocity;
+
+  // Polynomial degree used for pressure.
+  const unsigned int degree_pressure;
+
+  // Total Time 
+  double T;
+
+  // Time step.
+  double deltat;
+
+  // Theta parameter of the theta method.
+  double theta;
+
+  // Kinematic viscosity [m2/s].
+  double nu = 0.001;   
+
+  // Outlet pressure [Pa].
+  double p_out = 10.0;
+
+  // density [Kg/m^3].
+  double rho = 1.0; 
+
+  // Inlet velocity.
+  InletVelocity inlet_velocity;
 
   // Number of MPI processes.
   const unsigned int mpi_size;
@@ -379,36 +405,15 @@ protected:
   // Parallel output stream.
   ConditionalOStream pcout;
 
-  // Problem definition. ///////////////////////////////////////////////////////
-
-  // Kinematic viscosity [m2/s].   v = 1.004e-6 m2/s
-  const double nu = 0.02;   
-
-  // Outlet pressure [Pa].
-  const double p_out = 10.0;
-
-  // density
-  const double rho = 1.0;
-
-  // Cylinder diameter.
+//----------------------------------------------------------------------------
+  
+  // Cylinder diameter [m].
   const double cylinder_diameter = 0.1;
 
-  // Cylinder height 
+  // Cylinder height [m].
   const double cylinder_height = 0.41;
-  
   // Forcing term.
   ForcingTerm forcing_term;
-
-  // Inlet velocity.
-  InletVelocity inlet_velocity;
-
-//----------------------------------------------------------------------------
-  // Mesh file name.
-  const std::string mesh_file_name;
-  
-  
-  // Total Time 
-  const double T;
 
   // Current Time
   double time;
@@ -416,33 +421,24 @@ protected:
   // Initial Condition
   FunctionU0 u_0;
 
-  // Time step.
-  const double deltat;
-
-  // Theta parameter of the theta method.
-  const double theta;
-  
   // Vector of all the drag coefficients.
   std::vector<double> drag_coefficients; 
   
-  // Vector of all the drag coefficients
+  // Vector of all the drag coefficients.
   std::vector<double> lift_coefficients;
 
   // Drag/Lift coefficient multiplicative constant.
-  const double constant_coeff = 2.0 / (rho * inlet_velocity.mean_value() * inlet_velocity.mean_value() * cylinder_diameter * cylinder_height); 
+  const double constant_coeff_3D = 2.0 / (rho * inlet_velocity.mean_value() * inlet_velocity.mean_value() * cylinder_diameter * cylinder_height); 
 
+  // Drag/Lift coefficient multiplicative constant.
+  const double constant_coeff_2D = 2.0 / (rho * inlet_velocity.mean_value() * cylinder_diameter); 
+
+  // Reynolds number.
+  const double Reynolds_number = inlet_velocity.mean_value() * cylinder_diameter / nu;
 
 //----------------------------------------------------------------------------
 
   // Discretization. ///////////////////////////////////////////////////////////
-
-  
-
-  // Polynomial degree used for velocity.
-  const unsigned int degree_velocity;
-
-  // Polynomial degree used for pressure.
-  const unsigned int degree_pressure;
 
   // Mesh.
   parallel::fullydistributed::Triangulation<dim> mesh;

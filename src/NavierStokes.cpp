@@ -167,6 +167,7 @@ NavierStokes::assemble_time_independent()
   const unsigned int dofs_per_cell = fe->dofs_per_cell;
   const unsigned int n_q           = quadrature->size();
 
+  std::cout<<"Um: "<<inlet_velocity.vel<<" CASO: "<<inlet_velocity.case_type<<std::endl;
   FEValues<dim>     fe_values(*fe,
                           *quadrature,
                           update_values | update_gradients |
@@ -319,7 +320,8 @@ NavierStokes::assemble_system()
 
     fe_values[velocity].get_function_values(solution, velocity_loc);
     fe_values[velocity].get_function_gradients(solution, velocity_gradient_loc);
-    // Calculate the value of the previous solution at quadrature points.
+
+    // Calculate the value of the previous solution at quadrature points
     fe_values[velocity].get_function_values(solution, old_solution_values);
 
     for (unsigned int q = 0; q < n_q; ++q)
@@ -467,7 +469,6 @@ NavierStokes::assemble_system()
 
 
 
-
 void
 NavierStokes::solve_time_step()
 {
@@ -508,7 +509,7 @@ void NavierStokes::solve()
   VectorTools::interpolate(dof_handler, u_0, solution_owned);
   solution = solution_owned;
 
-  // calculate coefficients
+  // calculate coefficients.
   calculate_coefficients();
 
   unsigned int time_step = 0;
@@ -635,8 +636,8 @@ void NavierStokes::calculate_coefficients()
   MPI_Allreduce(&lift_force, &total_lift, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
   // Every process now has the total drag and lift forces and can compute the coefficients
-  drag_coefficients.push_back(constant_coeff * total_drag);
-  lift_coefficients.push_back(constant_coeff * total_lift);
+  drag_coefficients.push_back(constant_coeff_3D * total_drag);
+  lift_coefficients.push_back(constant_coeff_3D * total_lift);
 }
 
 void NavierStokes::write_coefficients_on_files()
@@ -648,6 +649,8 @@ void NavierStokes::write_coefficients_on_files()
 
   if (current_rank == 0) // Only the master process writes to the files
   {
+    std::cout << "Reynolds number = " << Reynolds_number << std::endl;
+
     std::ofstream drag_file("drag_coefficient.csv"), lift_file("lift_coefficient.csv");
 
     if (drag_file && lift_file) // Check if files are successfully opened
