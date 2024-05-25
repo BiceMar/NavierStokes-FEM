@@ -244,23 +244,21 @@ NavierStokes::assemble_time_independent()
                   // Pressure mass matrix.
                   cell_pressure_mass_matrix(i, j) +=
                     fe_values[pressure].value(i, q) *
-                    fe_values[pressure].value(j, q) / nu * fe_values.JxW(q);
+                    fe_values[pressure].value(j, q) / nu * fe_values.JxW(q);                     
                 }
+            }
         }
-      }
 
       cell->get_dof_indices(dof_indices);
 
       lhs_matrix.add(dof_indices, cell_lhs_matrix);
       rhs_matrix.add(dof_indices, cell_rhs_matrix);
       pressure_mass.add(dof_indices, cell_pressure_mass_matrix);
-
     }
 
   lhs_matrix.compress(VectorOperation::add);
   rhs_matrix.compress(VectorOperation::add);
   pressure_mass.compress(VectorOperation::add);
-  
 }
 
 
@@ -286,7 +284,7 @@ NavierStokes::assemble_system()
 
   FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
   Vector<double>     cell_rhs(dofs_per_cell);
-  //FullMatrix<double> cell_Fp_matrix(dofs_per_cell, dofs_per_cell);
+  FullMatrix<double> cell_Fp_matrix(dofs_per_cell, dofs_per_cell);
 
   std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
 
@@ -350,7 +348,7 @@ NavierStokes::assemble_system()
             cell_matrix(i, j) +=
                 0.5 * (scalar_product(nonlinear_term, fe_values[velocity].value(i, q)) +
                         scalar_product(transpose_term, fe_values[velocity].value(i, q))) *
-                fe_values.JxW(q);             
+                fe_values.JxW(q);   
           }
 
           Vector<double> forcing_term_new_loc(dim);
@@ -407,7 +405,7 @@ NavierStokes::assemble_system()
       cell->get_dof_indices(dof_indices);
 
       system_matrix.add(dof_indices, cell_matrix);
-      system_rhs.add(dof_indices, cell_rhs);     
+      system_rhs.add(dof_indices, cell_rhs);    
   }
 
   system_matrix.compress(VectorOperation::add);
@@ -478,10 +476,40 @@ NavierStokes::solve_time_step()
 
   SolverGMRES<TrilinosWrappers::MPI::BlockVector> solver(solver_control);
 
-  // TODO: implement case
-  PreconditionBlockDiagonal preconditioner;
-  preconditioner.initialize(system_matrix.block(0, 0),
-                             pressure_mass.block(1, 1));
+  if(prec == 0){
+    PreconditionBlockDiagonal preconditioner;
+    preconditioner.initialize(system_matrix.block(0, 0),
+                              pressure_mass.block(1, 1));
+    pcout << "Solving the linear system" << std::endl;
+    solver.solve(system_matrix, solution_owned, system_rhs, preconditioner);
+     pcout << "  " << solver_control.last_step() << " GMRES iterations"
+        << std::endl;
+
+    solution = solution_owned;
+  }else if(prec == 1){
+    PreconditionSIMPLE preconditioner;  
+    preconditioner.initialize(
+            system_matrix.block(0, 0), system_matrix.block(1, 0),
+            system_matrix.block(0, 1), solution_owned);
+    pcout << "Solving the linear system" << std::endl;
+    solver.solve(system_matrix, solution_owned, system_rhs, preconditioner);
+     pcout << "  " << solver_control.last_step() << " GMRES iterations"
+        << std::endl;
+
+    solution = solution_owned;
+
+  }else if(prec == 2){
+    PreconditionaSIMPLE preconditioner;  
+    preconditioner.initialize(
+            system_matrix.block(0, 0), system_matrix.block(1, 0),
+            system_matrix.block(0, 1), solution_owned);
+    pcout << "Solving the linear system" << std::endl;
+    solver.solve(system_matrix, solution_owned, system_rhs, preconditioner);
+     pcout << "  " << solver_control.last_step() << " GMRES iterations"
+        << std::endl;
+
+    solution = solution_owned;
+  }
 
   //PreconditionIdentity preconditioner;
 
@@ -490,12 +518,11 @@ NavierStokes::solve_time_step()
   //                           pressure_mass.block(1, 1),
   //                           system_matrix.block(1, 0));
 
-  pcout << "Solving the linear system" << std::endl;
-  solver.solve(system_matrix, solution_owned, system_rhs, preconditioner);
-  pcout << "  " << solver_control.last_step() << " GMRES iterations"
-        << std::endl;
+  ///////////////////// YOSIDA PRECONDITIONER /////////////////////
+  //PreconditionYosida preconditioner;
+  //preconditioner.initialize(system_matrix.block(0, 0), system_matrix.block(1, 0),
+  //        system_matrix.block(0, 1), sparsity_velocity_mass.block(0, 0), solution_owned, 0.5, 100, 1e-6);
 
-  solution = solution_owned;
 }
 
 void NavierStokes::solve()

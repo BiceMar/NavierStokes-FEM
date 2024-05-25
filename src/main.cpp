@@ -2,7 +2,7 @@
 #include "NavierStokes.hpp"
 
 void print_usage() {
-    std::cout << "Usage: ./navier_stokes_solver\n --mesh <mesh_file>\n --degree_velocity <degree>\n --degree_pressure <degree>\n --T <total_time>\n --deltat <time_step>\n --theta <theta>\n --nu <viscosity>\n --p_out <pressure>\n --rho <density>\n";
+    std::cout << "Usage: ./navier_stokes_solver\n --mesh <mesh_file>\n --degree_velocity <degree>\n --degree_pressure <degree>\n --T <total_time>\n --deltat <time_step>\n --theta <theta>\n --nu <viscosity>\n --p_out <pressure>\n --rho <density>\n --case_type <case_type>\n --vel <velocity>\n --prec <preconditioner>\n";
 }
 
 int main(int argc, char *argv[])
@@ -12,14 +12,15 @@ int main(int argc, char *argv[])
     std::string  mesh_file_name  = "../mesh/mesh-0.1.msh";
     unsigned int degree_velocity = 2; // Default degree for velocity
     unsigned int degree_pressure = 1; // Default degree for pressure
-    double T = 1.0; // Default total time
+    double T = 2.0; // Default total time: 1.0
     double deltat = 0.125; // Default time step
     double theta = 1.0; // Default theta parameter
     double nu = 0.001; // Default kinematic viscosity
     double p_out = 10.0; // Default outlet pressure
     double rho = 1.0; // Default density
     int case_type = 1; // Default case type
-    double vel = 2.25; // Default velocity
+    double vel = 0.45; // Default velocity: 2.25
+    int prec = 0; // Default velocity: 2.25
 
     struct option long_options[] = {
         {"mesh", required_argument, 0, 'm'},
@@ -33,6 +34,7 @@ int main(int argc, char *argv[])
         {"rho", required_argument, 0, 'r'},
         {"case_type", required_argument, 0, 'c'},  
         {"vel", required_argument, 0, 'v'},  
+        {"prec", required_argument, 0, 'e'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
     };
@@ -40,7 +42,7 @@ int main(int argc, char *argv[])
     bool show_help = false;
     int option_index = 0;
     int c;
-    while ((c = getopt_long(argc, argv, "m:V:P:T:d:t:n:p:r:c:v:h", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(argc, argv, "m:V:P:T:d:t:n:p:r:c:v:e:h", long_options, &option_index)) != -1) {
         switch (c) {
             case 'm':
                 mesh_file_name = optarg;
@@ -80,6 +82,9 @@ int main(int argc, char *argv[])
             case 'v':
                 vel = std::stod(optarg);
                 break;
+            case 'e':
+                prec = std::stoi(optarg);;
+                break;
             case 'h':
                 show_help = true;
                 break;
@@ -98,7 +103,7 @@ int main(int argc, char *argv[])
     }
 
     try {
-        NavierStokes navier_stokes(mesh_file_name, degree_velocity, degree_pressure, T, deltat, theta, nu, p_out, rho, case_type, vel);
+        NavierStokes navier_stokes(mesh_file_name, degree_velocity, degree_pressure, T, deltat, theta, nu, p_out, rho, case_type, vel, prec);
 
         navier_stokes.setup();
         navier_stokes.solve();
