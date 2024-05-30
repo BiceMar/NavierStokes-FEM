@@ -9,10 +9,19 @@ int main(int argc, char *argv[])
 {
     Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
 
-    std::string  mesh_file_name  = "../mesh/mesh-0.1.msh";
+    int world_size;
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
+    int world_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+
+    std::cout << "number of processes: " << world_size << "." << std::endl;
+
+
+    std::string  mesh_file_name  = "../mesh/mesh-0.05.msh";
     unsigned int degree_velocity = 2; // Default degree for velocity
     unsigned int degree_pressure = 1; // Default degree for pressure
-    double T = 2.0; // Default total time: 1.0
+    double T = 1.0; // Default total time: 1.0
     double deltat = 0.125; // Default time step
     double theta = 1.0; // Default theta parameter
     double nu = 0.001; // Default kinematic viscosity

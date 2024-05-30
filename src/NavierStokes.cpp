@@ -125,6 +125,23 @@ NavierStokes::setup()
     DoFTools::make_sparsity_pattern(dof_handler, coupling, sparsity);
     sparsity.compress();
 
+    
+    // velocity mass term.
+    for (unsigned int c = 0; c < dim + 1; ++c) {
+      for (unsigned int d = 0; d < dim + 1; ++d) {
+        if (c == dim || d == dim)  // terms with pressure
+          coupling[c][d] = DoFTools::none;
+        else  // terms with no pressure
+          coupling[c][d] = DoFTools::always;
+      }
+    }
+
+    TrilinosWrappers::BlockSparsityPattern velocity_mass_sparsity(
+        block_owned_dofs, MPI_COMM_WORLD);
+    DoFTools::make_sparsity_pattern(dof_handler, coupling,
+                                    velocity_mass_sparsity);
+    velocity_mass_sparsity.compress();
+
     // We also build a sparsity pattern for the pressure mass matrix.
     for (unsigned int c = 0; c < dim + 1; ++c)
       {
@@ -143,12 +160,14 @@ NavierStokes::setup()
                                     sparsity_pressure_mass);
     sparsity_pressure_mass.compress();
 
+
     pcout << "  Initializing the matrices" << std::endl;
 
     pressure_mass.reinit(sparsity_pressure_mass);
     system_matrix.reinit(sparsity);
     rhs_matrix.reinit(sparsity);
     lhs_matrix.reinit(sparsity);
+    velocity_mass.reinit(velocity_mass_sparsity);
 
     pcout << "  Initializing the system right-hand side" << std::endl;
     system_rhs.reinit(block_owned_dofs, MPI_COMM_WORLD);
@@ -176,12 +195,14 @@ NavierStokes::assemble_time_independent()
   FullMatrix<double> cell_lhs_matrix(dofs_per_cell, dofs_per_cell);
   FullMatrix<double> cell_rhs_matrix(dofs_per_cell, dofs_per_cell);
   FullMatrix<double> cell_pressure_mass_matrix(dofs_per_cell, dofs_per_cell);
+  FullMatrix<double> velocity_mass_cell_matrix(dofs_per_cell, dofs_per_cell);
 
   std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
 
   lhs_matrix = 0.0;
   rhs_matrix = 0.0;
   pressure_mass = 0.0;
+  velocity_mass = 0.0;
 
   FEValuesExtractors::Vector velocity(0);
   FEValuesExtractors::Scalar pressure(dim);
@@ -196,6 +217,7 @@ NavierStokes::assemble_time_independent()
       cell_lhs_matrix = 0.0;
       cell_rhs_matrix = 0.0;
       cell_pressure_mass_matrix = 0.0;
+      velocity_mass_cell_matrix = 0.0;
 
       for (unsigned int q = 0; q < n_q; ++q)
         {
@@ -213,8 +235,12 @@ NavierStokes::assemble_time_independent()
                     fe_values.JxW(q);
 
                   // Mass Matrix M/deltat
-                  cell_lhs_matrix(i, j) += 
-                                            scalar_product(fe_values[velocity].value(i, q),
+                  cell_lhs_matrix(i, j) += scalar_product(fe_values[velocity].value(i, q),
+                                                          fe_values[velocity].value(j, q)) 
+                                                          / deltat * fe_values.JxW(q);
+                  
+                  
+                  velocity_mass_cell_matrix(i, j) += scalar_product(fe_values[velocity].value(i, q),
                                                           fe_values[velocity].value(j, q)) 
                                                           / deltat * fe_values.JxW(q);
                     
@@ -254,11 +280,13 @@ NavierStokes::assemble_time_independent()
       lhs_matrix.add(dof_indices, cell_lhs_matrix);
       rhs_matrix.add(dof_indices, cell_rhs_matrix);
       pressure_mass.add(dof_indices, cell_pressure_mass_matrix);
+      velocity_mass.add(dof_indices, velocity_mass_cell_matrix);
     }
 
   lhs_matrix.compress(VectorOperation::add);
   rhs_matrix.compress(VectorOperation::add);
   pressure_mass.compress(VectorOperation::add);
+  velocity_mass.compress(VectorOperation::add);
 }
 
 
@@ -411,9 +439,13 @@ NavierStokes::assemble_system()
   system_matrix.compress(VectorOperation::add);
   system_rhs.compress(VectorOperation::add);
   
+  velocity_mass.block(0, 0).vmult_add(system_rhs.block(0),
+                                      solution_owned.block(0));
+  
   // (M/deltaT + A*(1-theta))*u_n + (1-theta)*F(t_n) + theta*F(t_n+1) 
-  rhs_matrix.vmult_add(system_rhs, solution_owned);
+  //rhs_matrix.vmult_add(system_rhs, solution_owned);
   system_matrix.add(1.0, lhs_matrix);
+
 
   // Dirichlet boundary conditions.
   {
@@ -487,6 +519,7 @@ NavierStokes::solve_time_step()
 
     solution = solution_owned;
   }else if(prec == 1){
+    pcout << "Preconditioner simple" << std::endl;
     PreconditionSIMPLE preconditioner;  
     preconditioner.initialize(
             system_matrix.block(0, 0), system_matrix.block(1, 0),
@@ -500,9 +533,21 @@ NavierStokes::solve_time_step()
 
   }else if(prec == 2){
     PreconditionaSIMPLE preconditioner;  
+    pcout << "Preconditioner asimple" << std::endl;
     preconditioner.initialize(
             system_matrix.block(0, 0), system_matrix.block(1, 0),
             system_matrix.block(0, 1), solution_owned);
+    pcout << "Solving the linear system" << std::endl;
+    solver.solve(system_matrix, solution_owned, system_rhs, preconditioner);
+     pcout << "  " << solver_control.last_step() << " GMRES iterations"
+        << std::endl;
+
+    solution = solution_owned;
+  }else if(prec == 3){
+    pcout << "Preconditioner Yosida" << std::endl;
+    PreconditionYosida preconditioner;
+    preconditioner.initialize(system_matrix.block(0, 0), system_matrix.block(1, 0),
+            system_matrix.block(0, 1), velocity_mass.block(0, 0), solution_owned);
     pcout << "Solving the linear system" << std::endl;
     solver.solve(system_matrix, solution_owned, system_rhs, preconditioner);
      pcout << "  " << solver_control.last_step() << " GMRES iterations"
