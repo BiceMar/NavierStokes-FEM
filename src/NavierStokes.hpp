@@ -246,19 +246,6 @@ public:
           diag_D_inv[index] = 1.0 / M_dt_.diag_element(index);
         }
 
-      //  // Initialize neg_B with the same sparsity pattern as B.
-      //  neg_B.reinit(B_);
-      //
-      //  // Fill neg_B with the negation of B.
-      //  for (unsigned int row = 0; row < B_.m(); ++row) {
-      //    for (typename TrilinosWrappers::SparseMatrix::const_iterator entry = B_.begin(row);
-      //         entry != B_.end(row); ++entry) {
-      //      neg_B.set(row, entry->column(), -entry->value());
-      //    }
-      //  }
-      //  neg_B.compress(VectorOperation::insert);
-
-
         // Create the matrix S.
         B->mmult(S, *B_trans, diag_D_inv);
 
@@ -399,123 +386,6 @@ public:
   // protected:
   // };
 
-  
-  // PCD preconditioner.
-  class PreconditionBlockPCD
-  {
-  public:
-    // Initialize the preconditioner, given the F matrix, the
-    // pressure mass matrix, the B matrix, the Ap matrix and
-    // the Fp matrix.
-    void
-    initialize(const TrilinosWrappers::SparseMatrix &F_,
-               const TrilinosWrappers::SparseMatrix &pressure_mass_,
-               const TrilinosWrappers::SparseMatrix &Bt_,
-               const TrilinosWrappers::SparseMatrix &Ap_,
-               const TrilinosWrappers::SparseMatrix &Fp_)
-    {
-      F                  = &F_;
-      pressure_mass      = &pressure_mass_;
-      Bt                 = &Bt_;
-      Ap                 = &Ap_;
-      Fp                 = &Fp_;
-
-      preconditioner_F.initialize(F_);
-      preconditioner_pressure.initialize(pressure_mass_);
-      preconditioner_Ap.initialize(Ap_);  
-    }
-
-    // Application of the preconditioner.
-    void
-    vmult(TrilinosWrappers::MPI::BlockVector &      dst,
-          const TrilinosWrappers::MPI::BlockVector &src) const
-    {
-
-      // block 0
-
-      tmp1.reinit(src.block(1));
-      tmp2.reinit(src.block(1));
-      tmp3.reinit(src.block(0));
-
-      SolverControl solver_control_pressure(1000, 1e-2 * src.block(0).l2_norm());
-      SolverGMRES<TrilinosWrappers::MPI::Vector> solver_cg_pressure(solver_control_pressure);
-      solver_cg_pressure.solve(*pressure_mass,
-                               tmp1,
-                               src.block(1),
-                               preconditioner_pressure);
-  
-      Fp->vmult(tmp2, tmp1);
-
-      SolverControl solver_control_Ap(1000, 1e-2 * src.block(0).l2_norm());
-      SolverGMRES<TrilinosWrappers::MPI::Vector> solver_cg_Ap(solver_control_Ap);
-      solver_cg_Ap.solve(*Ap,
-                          tmp1,
-                          tmp2,
-                          preconditioner_Ap);
-
-      Bt->vmult(tmp3, tmp1);
-
-      tmp3.sadd(1.0, src.block(0));
-
-      SolverControl solver_control_F(1000, 1e-2 * src.block(0).l2_norm());
-      SolverGMRES<TrilinosWrappers::MPI::Vector> solver_cg_F(solver_control_F);
-      solver_cg_F.solve (*F,
-                          dst.block(0),
-                          tmp3,
-                          preconditioner_F);
-
-      // block 1
-
-      tmp1.reinit(src.block(1));
-      tmp2.reinit(src.block(1));
-
-      solver_cg_pressure.solve(*pressure_mass,
-                               tmp1,
-                               src.block(1),
-                               preconditioner_pressure);
-      
-      Fp->vmult(tmp2, tmp1);
-
-      solver_cg_Ap.solve(*Ap,
-                          tmp1,
-                          tmp2,
-                          preconditioner_Ap);
-
-      dst.block(1).sadd(-1.0, tmp1); 
-
-    }
-
-  protected:
-    // F matrix.
-    const TrilinosWrappers::SparseMatrix *F;
-
-    // Preconditioner used for the F block.
-    TrilinosWrappers::PreconditionILU preconditioner_F;
-
-    // Pressure mass matrix.
-    const TrilinosWrappers::SparseMatrix *pressure_mass;
-
-    // Preconditioner used for the pressure block.
-    TrilinosWrappers::PreconditionILU preconditioner_pressure;
-
-    // Bt matrix.
-    const TrilinosWrappers::SparseMatrix *Bt;
-
-    // Ap matrix.
-    const TrilinosWrappers::SparseMatrix *Ap;
-
-    // Preconditioner used for the Ap block.
-    TrilinosWrappers::PreconditionILU preconditioner_Ap;
-
-    // Fp matrix.
-    const TrilinosWrappers::SparseMatrix *Fp;
-
-    // Temporary vectors.
-    mutable TrilinosWrappers::MPI::Vector tmp1;
-    mutable TrilinosWrappers::MPI::Vector tmp2;
-    mutable TrilinosWrappers::MPI::Vector tmp3;
-  };
-
    // SIMPLE preconditioner.
   class PreconditionSIMPLE 
   {
@@ -571,10 +441,10 @@ public:
 
       //Solving S_tilde * sol_p = iter_sol with GMRES
       SolverControl solver_S(maxiter, tol * inter_sol.l2_norm());
-      //SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres_S(solver_S);
-      //solver_gmres_S.solve(S_tilde, sol_p, inter_sol, preconditioner_S);
-      SolverCG<TrilinosWrappers::MPI::Vector> solver_cg(solver_S);
-      solver_cg.solve(S_tilde, sol_p, inter_sol, preconditioner_S);
+      SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres_S(solver_S);
+      solver_gmres_S.solve(S_tilde, sol_p, inter_sol, preconditioner_S);
+      //SolverCG<TrilinosWrappers::MPI::Vector> solver_cg(solver_S);
+      //solver_cg.solve(S_tilde, sol_p, inter_sol, preconditioner_S);
 
       // Update destination vector 
       dst.block(1) = sol_p;
@@ -621,11 +491,11 @@ public:
     D_inv.reinit(sol_owned.block(0));
     neg_D.reinit(sol_owned.block(0));
 
-    // Iterate over locally owned elements to initialize diagonal elements
+    // Compute inverse of diagonal matrix
     for (unsigned int i : neg_D.locally_owned_elements())
     {
-      neg_D[i] = -(F->diag_element(i));                // Store negative of diagonal element
-      D_inv[i] = 1.0 / F->diag_element(i);       // Store inverse of diagonal element
+      neg_D[i] = -(F->diag_element(i));            
+      D_inv[i] = 1.0 / F->diag_element(i);
     }
 
     // Compute Schur complement matrix S = B * D_inv * B_T
@@ -639,49 +509,32 @@ public:
   void vmult(TrilinosWrappers::MPI::BlockVector &dst,
              const TrilinosWrappers::MPI::BlockVector &src) const
   {
-    // Define maximum iterations and tolerance for the solver
     const unsigned int maxiter = 10000;
     const double tol = 1e-2;
 
-    // Setup GMRES solver for matrix F with specified tolerance
     SolverControl solver_F(maxiter, tol * src.block(0).l2_norm());
     SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres(solver_F);
 
-    // Resize temporary vector based on second block of src
     tmp.reinit(src.block(1));
 
-    // Solve F * dst.block(0) = src.block(0) using GMRES with preconditionerF
+    // Solve F * dst.block(0) = src.block(0) using GMRES
     solver_gmres.solve(*F, dst.block(0), src.block(0), preconditionerF);
-
-    // Copy src.block(1) to dst.block(1)
     dst.block(1) = src.block(1);
-
-    // Compute B * dst.block(0) and store result in dst.block(1)
+    
     B->vmult(dst.block(1), dst.block(0));
-
-    // Update dst.block(1) by subtracting src.block(1)
     dst.block(1).sadd(-1.0, src.block(1));
-
-    // Copy updated dst.block(1) to temporary vector tmp
     tmp = dst.block(1);
-
-    // Setup CG solver for matrix S with specified tolerance
     SolverControl solver_S(maxiter, tol * tmp.l2_norm());
-    SolverCG<TrilinosWrappers::MPI::Vector> solver_cg(solver_S);
-
-    // Solve S * dst.block(1) = tmp using CG with preconditionerS
-    solver_cg.solve(S, dst.block(1), tmp, preconditionerS);
-
-    // Scale dst.block(0) by neg_D
+    //SolverCG<TrilinosWrappers::MPI::Vector> solver_cg(solver_S);
+    //solver_cg.solve(S, dst.block(1), tmp, preconditionerS);
+    SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres(solver_S);
+    solver_gmres.solve(S, dst.block(1), tmp, preconditionerS);
     dst.block(0).scale(neg_D);
-
-    // Scale dst.block(1) by 1/alpha
     dst.block(1) *= 1.0 / alpha;
 
-    // Compute B_T * dst.block(1) and add result to dst.block(0)
     B_T->vmult_add(dst.block(0), dst.block(1));
 
-    // Scale dst.block(0) by D_inv
+    
     dst.block(0).scale(D_inv);
   }
 
