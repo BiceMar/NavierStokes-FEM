@@ -37,12 +37,11 @@
 using namespace dealii;
 
 // Class implementing a solver for the Stokes problem.
+
+template<int dim>
 class NavierStokes
 {
 public:
-  // Physical dimension (1D, 2D, 3D)
-  static constexpr unsigned int dim = 3;
-
   // Function for the forcing term.
   class ForcingTerm : public Function<dim>
   {
@@ -71,54 +70,48 @@ public:
     const double g = 0.0;
   };
 
-  // Function for inlet velocity. This actually returns an object with four
-  // components (one for each velocity component, and one for the pressure), but
-  // then only the first three are really used (see the component mask when
-  // applying boundary conditions at the end of assembly). If we only return
-  // three components, however, we may get an error message due to this function
-  // being incompatible with the finite element space.
   class InletVelocity : public Function<dim>
-{
-public:
-    InletVelocity(int case_type = 1, double vel = 2.25)   // Default to case 1 if not specified
-        : Function<dim>(dim + 1), vel(vel), case_type(case_type) // Inizializza vel prima di case_type
-    {}
+  {
+  public:
+      InletVelocity(int case_type = 1, double vel = 2.25)   // Default to case 1 if not specified
+          : Function<dim>(dim + 1), vel(vel), case_type(case_type) // Inizializza vel prima di case_type
+      {}
 
-    double mean_value() const {
-        return vel; // [m/s]
-    }
-    double maxVelocity() const {
-        return 16 * vel;
-    }
+      double mean_value() const {
+          return vel; // [m/s]
+      }
+      double maxVelocity() const {
+          return 16 * vel;
+      }
 
-    virtual void vector_value(const Point<dim> &p, Vector<double> &values) const override {
-        if (case_type == 1) {
-            values[0] = 16.0 * vel * p[1] * p[2] *(H - p[1]) * (H - p[2]) / std::pow(H, 4);
-        } else {
-            values[0] = 16 * vel * p[1] * p[2] *(H - p[1]) * (H - p[2]) * std::sin(M_PI * get_time() / 8.0) / std::pow(H, 4);
-        }
-        
-        for (unsigned int i = 1; i < dim + 1; ++i)
-            values[i] = 0.0;
-    }
+      virtual void vector_value(const Point<dim> &p, Vector<double> &values) const override {
+          if (case_type == 1) {
+              values[0] = 16.0 * vel * p[1] * p[2] *(H - p[1]) * (H - p[2]) / std::pow(H, 4);
+          } else {
+              values[0] = 16 * vel * p[1] * p[2] *(H - p[1]) * (H - p[2]) * std::sin(M_PI * this->get_time() / 8.0) / std::pow(H, 4);
+          }
+          
+          for (unsigned int i = 1; i < dim + 1; ++i)
+              values[i] = 0.0;
+      }
 
-    virtual double value(const Point<dim> &p, const unsigned int component = 0) const override {
-        if (component == 0) {
-            if (case_type == 1) {
-                return 16.0 * vel * p[1] * p[2] *(H - p[1]) * (H - p[2]) / std::pow(H, 4);
-            } else {
-                return 16 * vel * p[1] * p[2] *(H - p[1]) * (H - p[2]) * std::sin(M_PI * get_time() / 8.0) / std::pow(H, 4);
-            }
-        } else {
-            return 0.0;
-        }
-    }
+      virtual double value(const Point<dim> &p, const unsigned int component = 0) const override {
+          if (component == 0) {
+              if (case_type == 1) {
+                  return 16.0 * vel * p[1] * p[2] *(H - p[1]) * (H - p[2]) / std::pow(H, 4);
+              } else {
+                  return 16 * vel * p[1] * p[2] *(H - p[1]) * (H - p[2]) * std::sin(M_PI * this->get_time() / 8.0) / std::pow(H, 4);
+              }
+          } else {
+              return 0.0;
+          }
+      }
 
-public:
-    double vel = 0.45; // [m/s] prev val: 2.25
-    double H = 0.41;
-    int case_type = 0; // Attributo per selezionare il caso per il calcolo
-};
+  public:
+      double vel = 0.45; // [m/s] prev val: 2.25
+      double H = 0.41;
+      int case_type = 0; // Attributo per selezionare il caso per il calcolo
+  };
 
 
   // Function for the initial condition.
@@ -305,87 +298,6 @@ public:
    TrilinosWrappers::PreconditionILU preconditioner_S;
   };
 
-  // Block-triangular preconditioner.
-  // class PreconditionBlockTriangular
-  // {
-  // public:
-  //   // Initialize the preconditioner, given the velocity stiffness matrix, the
-  //   // pressure mass matrix.
-  //   void
-  //   initialize(const TrilinosWrappers::SparseMatrix &velocity_stiffness_,
-  //              const TrilinosWrappers::SparseMatrix &pressure_mass_,
-  //              const TrilinosWrappers::SparseMatrix &B_)
-  //   {
-  //     velocity_stiffness = &velocity_stiffness_;
-  //     pressure_mass      = &pressure_mass_;
-  //     B                  = &B_;
-  //     preconditioner_velocity.initialize(velocity_stiffness_);
-  //     preconditioner_pressure.initialize(pressure_mass_);
-  //   }
-
-  //   // Application of the preconditioner.
-  //   void
-  //   vmult(TrilinosWrappers::MPI::BlockVector       &dst,
-  //         const TrilinosWrappers::MPI::BlockVector &src) const
-  //   {
-  //     SolverControl                           solver_control_velocity(1000,
-  //                                           1e-2 * src.block(0).l2_norm());
-  //     SolverCG<TrilinosWrappers::MPI::Vector> solver_cg_velocity(
-  //       solver_control_velocity);
-  //     solver_cg_velocity.solve(*velocity_stiffness,
-  //                              dst.block(0),
-  //                              src.block(0),
-  //                              preconditioner_velocity);
-
-  //     tmp.reinit(src.block(1));
-  //     B->vmult(tmp, dst.block(0));
-  //     tmp.sadd(-1.0, src.block(1));
-
-  //     SolverControl                           solver_control_pressure(1000,
-  //                                           1e-2 * src.block(1).l2_norm());
-  //     SolverCG<TrilinosWrappers::MPI::Vector> solver_cg_pressure(
-  //       solver_control_pressure);
-  //     solver_cg_pressure.solve(*pressure_mass,
-  //                              dst.block(1),
-  //                              tmp,
-  //                              preconditioner_pressure);
-  //   }
-
-//   protected:
-//     // Velocity stiffness matrix.
-//     const TrilinosWrappers::SparseMatrix *velocity_stiffness;
-
-//     // Preconditioner used for the velocity block.
-//     TrilinosWrappers::PreconditionILU preconditioner_velocity;
-
-//     // Pressure mass matrix.
-//     //const TrilinosWrappers::SparseMatrix *pressure_mass;
-
-//     // Preconditioner used for the pressure block.
-//     TrilinosWrappers::PreconditionILU preconditioner_pressure;
-
-//     // B matrix.
-//     const TrilinosWrappers::SparseMatrix *B;
-
-//     // Temporary vector.
-//     mutable TrilinosWrappers::MPI::Vector tmp;
-// };
-
-  // class PreconditionIdentity
-  // {
-  // public:
-  //   // Application of the preconditioner: we just copy the input vector (src)
-  //   // into the output vector (dst).
-  //   void
-  //   vmult(TrilinosWrappers::MPI::BlockVector       &dst,
-  //         const TrilinosWrappers::MPI::BlockVector &src) const
-  //   {
-  //     dst = src;
-  //   }
-
-  // protected:
-  // };
-
    // SIMPLE preconditioner.
   class PreconditionSIMPLE 
   {
@@ -474,98 +386,94 @@ public:
 
   // aSIMPLE preconditioner
   class PreconditionaSIMPLE
-{
-public:
-  // Initialization function for setting up matrices and vectors
-  void initialize(const TrilinosWrappers::SparseMatrix &F_,
-                  const TrilinosWrappers::SparseMatrix &B_,
-                  const TrilinosWrappers::SparseMatrix &B_t,
-                  const TrilinosWrappers::MPI::BlockVector &sol_owned)
   {
-    // Assign input matrices to class members
-    F = &F_;
-    B = &B_;
-    B_T = &B_t;
-
-    // Resize and initialize diagonal vectors based on input vector block
-    D_inv.reinit(sol_owned.block(0));
-    neg_D.reinit(sol_owned.block(0));
-
-    // Compute inverse of diagonal matrix
-    for (unsigned int i : neg_D.locally_owned_elements())
+  public:
+    // Initialization function for setting up matrices and vectors
+    void initialize(const TrilinosWrappers::SparseMatrix &F_,
+                    const TrilinosWrappers::SparseMatrix &B_,
+                    const TrilinosWrappers::SparseMatrix &B_t,
+                    const TrilinosWrappers::MPI::BlockVector &sol_owned)
     {
-      neg_D[i] = -(F->diag_element(i));            
-      D_inv[i] = 1.0 / F->diag_element(i);
+      // Assign input matrices to class members
+      F = &F_;
+      B = &B_;
+      B_T = &B_t;
+
+      // Resize and initialize diagonal vectors based on input vector block
+      D_inv.reinit(sol_owned.block(0));
+      neg_D.reinit(sol_owned.block(0));
+
+      // Compute inverse of diagonal matrix
+      for (unsigned int i : neg_D.locally_owned_elements())
+      {
+        neg_D[i] = -(F->diag_element(i));            
+        D_inv[i] = 1.0 / F->diag_element(i);
+      }
+
+      // Compute Schur complement matrix S = B * D_inv * B_T
+      B->mmult(S, *B_T, D_inv);
+
+      // Initialize ILU preconditioners for matrices F and S
+      preconditionerF.initialize(*F);
+      preconditionerS.initialize(S);
     }
 
-    // Compute Schur complement matrix S = B * D_inv * B_T
-    B->mmult(S, *B_T, D_inv);
+    void vmult(TrilinosWrappers::MPI::BlockVector &dst,
+              const TrilinosWrappers::MPI::BlockVector &src) const
+    {
+      const unsigned int maxiter = 10000;
+      const double tol = 1e-2;
 
-    // Initialize ILU preconditioners for matrices F and S
-    preconditionerF.initialize(*F);
-    preconditionerS.initialize(S);
-  }
+      SolverControl solver_F(maxiter, tol * src.block(0).l2_norm());
+      SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres(solver_F);
 
-  void vmult(TrilinosWrappers::MPI::BlockVector &dst,
-             const TrilinosWrappers::MPI::BlockVector &src) const
-  {
-    const unsigned int maxiter = 10000;
-    const double tol = 1e-2;
+      tmp.reinit(src.block(1));
 
-    SolverControl solver_F(maxiter, tol * src.block(0).l2_norm());
-    SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres(solver_F);
+      // Solve F * dst.block(0) = src.block(0) using GMRES
+      solver_gmres.solve(*F, dst.block(0), src.block(0), preconditionerF);
+      dst.block(1) = src.block(1);
+      
+      B->vmult(dst.block(1), dst.block(0));
+      dst.block(1).sadd(-1.0, src.block(1));
+      tmp = dst.block(1);
+      SolverControl solver_S(maxiter, tol * tmp.l2_norm());
+      //SolverCG<TrilinosWrappers::MPI::Vector> solver_cg(solver_S);
+      //solver_cg.solve(S, dst.block(1), tmp, preconditionerS);
+      //SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres(solver_S);
+      solver_gmres.solve(S, dst.block(1), tmp, preconditionerS);
+      dst.block(0).scale(neg_D);
+      dst.block(1) *= 1.0 / alpha;
 
-    tmp.reinit(src.block(1));
+      B_T->vmult_add(dst.block(0), dst.block(1));
 
-    // Solve F * dst.block(0) = src.block(0) using GMRES
-    solver_gmres.solve(*F, dst.block(0), src.block(0), preconditionerF);
-    dst.block(1) = src.block(1);
-    
-    B->vmult(dst.block(1), dst.block(0));
-    dst.block(1).sadd(-1.0, src.block(1));
-    tmp = dst.block(1);
-    SolverControl solver_S(maxiter, tol * tmp.l2_norm());
-    //SolverCG<TrilinosWrappers::MPI::Vector> solver_cg(solver_S);
-    //solver_cg.solve(S, dst.block(1), tmp, preconditionerS);
-    SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres(solver_S);
-    solver_gmres.solve(S, dst.block(1), tmp, preconditionerS);
-    dst.block(0).scale(neg_D);
-    dst.block(1) *= 1.0 / alpha;
+      
+      dst.block(0).scale(D_inv);
+    }
 
-    B_T->vmult_add(dst.block(0), dst.block(1));
+  protected:
+    // Pointers to sparse matrices
+    const TrilinosWrappers::SparseMatrix *F;
+    const TrilinosWrappers::SparseMatrix *B_T;
+    const TrilinosWrappers::SparseMatrix *B;
 
-    
-    dst.block(0).scale(D_inv);
-  }
+    // Schur complement matrix
+    TrilinosWrappers::SparseMatrix S;
 
-protected:
-  // Pointers to sparse matrices
-  const TrilinosWrappers::SparseMatrix *F;
-  const TrilinosWrappers::SparseMatrix *B_T;
-  const TrilinosWrappers::SparseMatrix *B;
+    // ILU preconditioners for matrices F and S
+    TrilinosWrappers::PreconditionILU preconditionerF;
+    TrilinosWrappers::PreconditionILU preconditionerS;
 
-  // Schur complement matrix
-  TrilinosWrappers::SparseMatrix S;
+    // Diagonal and inverse diagonal vectors
+    TrilinosWrappers::MPI::Vector neg_D;
+    TrilinosWrappers::MPI::Vector D_inv;
 
-  // ILU preconditioners for matrices F and S
-  TrilinosWrappers::PreconditionILU preconditionerF;
-  TrilinosWrappers::PreconditionILU preconditionerS;
+    // Temporary vectors for intermediate computations
+    mutable TrilinosWrappers::MPI::Vector tmp;
+    mutable TrilinosWrappers::MPI::Vector tmp2;
 
-  // Diagonal and inverse diagonal vectors
-  TrilinosWrappers::MPI::Vector neg_D;
-  TrilinosWrappers::MPI::Vector D_inv;
-
-  // Temporary vectors for intermediate computations
-  mutable TrilinosWrappers::MPI::Vector tmp;
-  mutable TrilinosWrappers::MPI::Vector tmp2;
-
-  // Constant scalar alpha for scaling
-  const double alpha = 0.5;
-};
-
- // Setup system.
-  void
-  setup();
+    // Constant scalar alpha for scaling
+    const double alpha = 0.5;
+  };
 
   NavierStokes(const std::string &mesh_file_name_,
                            const unsigned int &degree_velocity_,
@@ -573,12 +481,12 @@ protected:
                            const double &_T,
                            const double &deltat_,
                            const double &theta_,
-                           double nu_,
-                           double p_out_,
-                           double rho_,
-                           int case_type_,
-                           double vel_,
-                           int prec_)
+                           const double nu_,
+                           const double p_out_,
+                           const double rho_,
+                           const int case_type_,
+                           const double vel_,
+                           const unsigned int prec_)
   : mesh_file_name(mesh_file_name_),
     degree_velocity(degree_velocity_),
     degree_pressure(degree_pressure_),
@@ -597,6 +505,15 @@ protected:
     {
     }
 
+
+  void
+  setup();
+
+  void
+  solve();
+
+protected:
+
   // Assemble system. We also assemble the pressure mass matrix (needed for the
   // preconditioner).
   void
@@ -609,8 +526,6 @@ protected:
   void
   solve_time_step();
 
-  void
-  solve();
 
   // Output results.
   void
@@ -623,8 +538,6 @@ protected:
   // Write coefficients on file.
   void
   write_coefficients_on_files();
-
-protected:
   
   // Mesh file name.
   const std::string mesh_file_name;

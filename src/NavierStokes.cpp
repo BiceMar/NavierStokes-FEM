@@ -1,7 +1,8 @@
 #include "NavierStokes.hpp"
 
+template<int dim>
 void
-NavierStokes::setup()
+NavierStokes<dim>::setup()
 {
   // Create the mesh.
   {
@@ -177,8 +178,9 @@ NavierStokes::setup()
   }
 }
 
+template<int dim>
 void
-NavierStokes::assemble_time_independent()
+NavierStokes<dim>::assemble_time_independent()
 {
   pcout << "===============================================" << std::endl;
   pcout << "Assembling time independent component" << std::endl;
@@ -193,14 +195,12 @@ NavierStokes::assemble_time_independent()
                             update_quadrature_points | update_JxW_values);
 
   FullMatrix<double> cell_lhs_matrix(dofs_per_cell, dofs_per_cell);
-  FullMatrix<double> cell_rhs_matrix(dofs_per_cell, dofs_per_cell);
   FullMatrix<double> cell_pressure_mass_matrix(dofs_per_cell, dofs_per_cell);
   FullMatrix<double> velocity_mass_cell_matrix(dofs_per_cell, dofs_per_cell);
 
   std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
 
   lhs_matrix = 0.0;
-  rhs_matrix = 0.0;
   pressure_mass = 0.0;
   velocity_mass = 0.0;
 
@@ -215,7 +215,6 @@ NavierStokes::assemble_time_independent()
       fe_values.reinit(cell);
 
       cell_lhs_matrix = 0.0;
-      cell_rhs_matrix = 0.0;
       cell_pressure_mass_matrix = 0.0;
       velocity_mass_cell_matrix = 0.0;
 
@@ -254,19 +253,6 @@ NavierStokes::assemble_time_independent()
                                        fe_values[pressure].value(i, q) *
                                        fe_values.JxW(q);
 
-                  // M/deltaT
-                  cell_rhs_matrix(i, j) += 
-                    scalar_product(fe_values[velocity].value(i, q),
-                                   fe_values[velocity].value(j, q)) /
-                    deltat * fe_values.JxW(q);
-
-                  // A*(1-theta)               
-                  cell_rhs_matrix(i, j) +=
-                    nu * (1.0 - theta) * 
-                    scalar_product(fe_values[velocity].gradient(i, q),
-                                   fe_values[velocity].gradient(j, q)) *
-                    fe_values.JxW(q);
-
                   // Pressure mass matrix.
                   cell_pressure_mass_matrix(i, j) +=
                     fe_values[pressure].value(i, q) *
@@ -278,20 +264,19 @@ NavierStokes::assemble_time_independent()
       cell->get_dof_indices(dof_indices);
 
       lhs_matrix.add(dof_indices, cell_lhs_matrix);
-      rhs_matrix.add(dof_indices, cell_rhs_matrix);
       pressure_mass.add(dof_indices, cell_pressure_mass_matrix);
       velocity_mass.add(dof_indices, velocity_mass_cell_matrix);
     }
 
   lhs_matrix.compress(VectorOperation::add);
-  rhs_matrix.compress(VectorOperation::add);
   pressure_mass.compress(VectorOperation::add);
   velocity_mass.compress(VectorOperation::add);
 }
 
 
+template<int dim>
 void 
-NavierStokes::assemble_system()
+NavierStokes<dim>::assemble_system()
 {
   pcout << "===============================================" << std::endl;
   pcout << "Assembling the system time step" << std::endl;
@@ -379,6 +364,8 @@ NavierStokes::assemble_system()
                 fe_values.JxW(q);   
           }
 
+          // Forcing term calculation
+
           Vector<double> forcing_term_new_loc(dim);
           Vector<double> forcing_term_old_loc(dim);
 
@@ -399,7 +386,6 @@ NavierStokes::assemble_system()
             forcing_term_tensor_old[d] = forcing_term_old_loc[d];
           }   
           
-          // Forcing term.
           cell_rhs(i) += scalar_product(theta  * forcing_term_tensor_new +
                                   (1.0 - theta) * forcing_term_tensor_old,
                                         fe_values[velocity].value(i, q)) *
@@ -407,6 +393,7 @@ NavierStokes::assemble_system()
         }
     }
 
+    // Neumann BCs
     if (cell->at_boundary())
       {
         for (unsigned int f = 0; f < cell->n_faces(); ++f)
@@ -441,9 +428,6 @@ NavierStokes::assemble_system()
   
   velocity_mass.block(0, 0).vmult_add(system_rhs.block(0),
                                       solution_owned.block(0));
-  
-  // (M/deltaT + A*(1-theta))*u_n + (1-theta)*F(t_n) + theta*F(t_n+1) 
-  //rhs_matrix.vmult_add(system_rhs, solution_owned);
   system_matrix.add(1.0, lhs_matrix);
 
 
@@ -497,10 +481,9 @@ NavierStokes::assemble_system()
   }
 }
 
-
-
+template<int dim>
 void
-NavierStokes::solve_time_step()
+NavierStokes<dim>::solve_time_step()
 {
   pcout << "===============================================" << std::endl;
 
@@ -530,7 +513,6 @@ NavierStokes::solve_time_step()
         << std::endl;
 
     solution = solution_owned;
-
   }else if(prec == 2){
     PreconditionaSIMPLE preconditioner;  
     pcout << "Preconditioner asimple" << std::endl;
@@ -556,32 +538,23 @@ NavierStokes::solve_time_step()
     solution = solution_owned;
   }
 
-  //PreconditionIdentity preconditioner;
-
-  // PreconditionBlockTriangular preconditioner;
-  // preconditioner.initialize(system_matrix.block(0, 0),
-  //                           pressure_mass.block(1, 1),
-  //                           system_matrix.block(1, 0));
-
-  ///////////////////// YOSIDA PRECONDITIONER /////////////////////
-  //PreconditionYosida preconditioner;
-  //preconditioner.initialize(system_matrix.block(0, 0), system_matrix.block(1, 0),
-  //        system_matrix.block(0, 1), sparsity_velocity_mass.block(0, 0), solution_owned, 0.5, 100, 1e-6);
 
 }
 
-void NavierStokes::solve()
+template<int dim>
+void NavierStokes<dim>::solve()
 {
   pcout << "===============================================" << std::endl;
   time = 0.0;
 
+  // assemble constant matrices
   assemble_time_independent();
 
   u_0.set_time(time);
   VectorTools::interpolate(dof_handler, u_0, solution_owned);
   solution = solution_owned;
 
-  // calculate coefficients.
+  // calculate coefficients
   calculate_coefficients();
 
   unsigned int time_step = 0;
@@ -604,7 +577,8 @@ void NavierStokes::solve()
 }
 
 
-void NavierStokes::output(const unsigned int &time_step) const
+template<int dim>
+void NavierStokes<dim>::output(const unsigned int &time_step) const
 {
   pcout << "===============================================" << std::endl;
 
@@ -643,7 +617,8 @@ void NavierStokes::output(const unsigned int &time_step) const
 }
 
 
-void NavierStokes::calculate_coefficients()
+template<int dim>
+void NavierStokes<dim>::calculate_coefficients()
 {
   pcout << "===============================================" << std::endl;
   pcout << "Calcolo dei coefficienti" << std::endl;
@@ -712,7 +687,8 @@ void NavierStokes::calculate_coefficients()
   lift_coefficients.push_back(constant_coeff_3D * total_lift);
 }
 
-void NavierStokes::write_coefficients_on_files()
+template<int dim>
+void NavierStokes<dim>::write_coefficients_on_files()
 {
   const unsigned int current_rank = Utilities::MPI::this_mpi_process(MPI_COMM_WORLD);
 

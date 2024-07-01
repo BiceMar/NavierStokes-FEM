@@ -1,8 +1,8 @@
 #include <getopt.h>
 #include "NavierStokes.hpp"
-
+#include "NavierStokes.cpp"
 void print_usage() {
-    std::cout << "Usage: ./navier_stokes_solver\n --mesh <mesh_file>\n --degree_velocity <degree>\n --degree_pressure <degree>\n --T <total_time>\n --deltat <time_step>\n --theta <theta>\n --nu <viscosity>\n --p_out <pressure>\n --rho <density>\n --case_type <case_type>\n --vel <velocity>\n --prec <preconditioner>\n";
+    std::cout << "Usage: ./navier_stokes_solver\n --mesh <mesh_file>\n --degree_velocity <degree>\n --degree_pressure <degree>\n --T <total_time>\n --deltat <time_step>\n --theta <theta>\n --nu <viscosity>\n --p_out <pressure>\n --rho <density>\n --case_type <case_type>\n --vel <velocity>\n --prec <preconditioner>\n --dim <dim>\n";
 }
 
 int main(int argc, char *argv[])
@@ -29,7 +29,9 @@ int main(int argc, char *argv[])
     double rho = 1.0; // Default density
     int case_type = 1; // Default case type
     double vel = 0.45; // Default velocity: 2.25
-    int prec = 0; // Default velocity: 2.25
+    unsigned int  prec = 0; // Default prec: 0
+    unsigned int dim = 3; // Default dim: 3
+        //const int d = 3;
 
     struct option long_options[] = {
         {"mesh", required_argument, 0, 'm'},
@@ -44,6 +46,7 @@ int main(int argc, char *argv[])
         {"case_type", required_argument, 0, 'c'},  
         {"vel", required_argument, 0, 'v'},  
         {"prec", required_argument, 0, 'e'},
+        {"dim", required_argument, 0, 'i'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
     };
@@ -51,7 +54,7 @@ int main(int argc, char *argv[])
     bool show_help = false;
     int option_index = 0;
     int c;
-    while ((c = getopt_long(argc, argv, "m:V:P:T:d:t:n:p:r:c:v:e:h", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(argc, argv, "m:V:P:T:d:t:n:p:r:c:v:e:i:h", long_options, &option_index)) != -1) {
         switch (c) {
             case 'm':
                 mesh_file_name = optarg;
@@ -81,18 +84,31 @@ int main(int argc, char *argv[])
                 rho = std::stod(optarg);
                 break;
             case 'c':
-            case_type = std::stoi(optarg);
-            if (case_type != 0 && case_type != 1) {
-                std::cerr << "Invalid case_type: " << case_type << ". Must be either 0 or 1.\n";
-                print_usage();
-                std::exit(EXIT_FAILURE);
-            }
+                case_type = std::stoi(optarg);
+                if (case_type != 0 && case_type != 1) {
+                    std::cerr << "Invalid case_type: " << case_type << ". Must be either 0 or 1.\n";
+                    print_usage();
+                    std::exit(EXIT_FAILURE);
+                }
             break;
             case 'v':
                 vel = std::stod(optarg);
                 break;
             case 'e':
-                prec = std::stoi(optarg);;
+                prec = std::stoi(optarg);
+                if (prec > 3) {
+                    std::cerr << "Invalid preconditioner: " << case_type << ". Must be either 0 or 1 or 2 or 3.\n";
+                    print_usage();
+                    std::exit(EXIT_FAILURE);
+                }
+                break;
+            case 'i':
+                dim = std::stoi(optarg);
+                if (dim != 2 && dim != 3) {
+                    std::cerr << "Invalid dimension: " << case_type << ". Must be either 2 or 3.\n";
+                    print_usage();
+                    std::exit(EXIT_FAILURE);
+                }
                 break;
             case 'h':
                 show_help = true;
@@ -112,7 +128,7 @@ int main(int argc, char *argv[])
     }
 
     try {
-        NavierStokes navier_stokes(mesh_file_name, degree_velocity, degree_pressure, T, deltat, theta, nu, p_out, rho, case_type, vel, prec);
+        NavierStokes<3> navier_stokes(mesh_file_name, degree_velocity, degree_pressure, T, deltat, theta, nu, p_out, rho, case_type, vel, prec);
 
         navier_stokes.setup();
         navier_stokes.solve();
