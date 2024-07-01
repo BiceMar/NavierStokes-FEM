@@ -78,19 +78,33 @@ public:
       {}
 
       double mean_value() const {
-          return vel; // [m/s]
-      }
-      double maxVelocity() const {
-          return 16 * vel;
+
+        if constexpr(dim==2){
+          if (case_type == 1) return 2. * vel / 3.;
+          else return 2. * vel *std::sin(M_PI*this->get_time()/8.) / 3.;
+        }
+        else if constexpr(dim==3){
+          if (case_type == 1) return 4. * vel / 9.;
+          else return 4. * vel *std::sin(M_PI*this->get_time()/8.) / 9.;
+        }
       }
 
       virtual void vector_value(const Point<dim> &p, Vector<double> &values) const override {
-          if (case_type == 1) {
-              values[0] = 16.0 * vel * p[1] * p[2] *(H - p[1]) * (H - p[2]) / std::pow(H, 4);
-          } else {
-              values[0] = 16 * vel * p[1] * p[2] *(H - p[1]) * (H - p[2]) * std::sin(M_PI * this->get_time() / 8.0) / std::pow(H, 4);
+        
+          if constexpr(dim == 2){
+            if (case_type == 1) {
+              values[0] = 4.0 * vel * p[1] * (H - p[1]) / std::pow(H, 2);
+            }else{
+              values[0] = 4.0 * vel * p[1] * (H - p[1]) * std::sin(M_PI * this->get_time() / 8.0) /  std::pow(H, 2);
+            }
           }
-          
+          else if constexpr(dim == 3){
+              if (case_type == 1) {
+                values[0] = 16.0 * vel * p[1] * p[2] *(H - p[1]) * (H - p[2]) / std::pow(H, 4);
+              } else {
+                values[0] = 16 * vel * p[1] * p[2] *(H - p[1]) * (H - p[2]) * std::sin(M_PI * this->get_time() / 8.0) / std::pow(H, 4);
+              }
+          }  
           for (unsigned int i = 1; i < dim + 1; ++i)
               values[i] = 0.0;
       }

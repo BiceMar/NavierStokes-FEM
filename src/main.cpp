@@ -18,20 +18,19 @@ int main(int argc, char *argv[])
     std::cout << "number of processes: " << world_size << "." << std::endl;
 
 
-    std::string  mesh_file_name  = "../mesh/mesh-0.05.msh";
+    std::string  mesh_file_name  = "../mesh/mesh-0.1.msh";
     unsigned int degree_velocity = 2; // Default degree for velocity
     unsigned int degree_pressure = 1; // Default degree for pressure
     double T = 1.0; // Default total time: 1.0
     double deltat = 0.125; // Default time step
     double theta = 1.0; // Default theta parameter
     double nu = 0.001; // Default kinematic viscosity
-    double p_out = 10.0; // Default outlet pressure
+    double p_out = 0.0; // Default outlet pressure
     double rho = 1.0; // Default density
     int case_type = 1; // Default case type
     double vel = 0.45; // Default velocity: 2.25
     unsigned int  prec = 0; // Default prec: 0
     unsigned int dim = 3; // Default dim: 3
-        //const int d = 3;
 
     struct option long_options[] = {
         {"mesh", required_argument, 0, 'm'},
@@ -127,18 +126,32 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    try {
-        NavierStokes<3> navier_stokes(mesh_file_name, degree_velocity, degree_pressure, T, deltat, theta, nu, p_out, rho, case_type, vel, prec);
+    if(dim == 2){
 
-        navier_stokes.setup();
-        navier_stokes.solve();
+        try {
+            NavierStokes<2> navier_stokes(mesh_file_name, degree_velocity, degree_pressure, T, deltat, theta, nu, p_out, rho, case_type, vel, prec);
 
-        return 0;
-    } catch (std::exception &e) {
-        std::cerr << "error: " << e.what() << "\n";
-        return 1;
-    } catch (...) {
-        std::cerr << "Exception of unknown type!\n";
+            navier_stokes.setup();
+            navier_stokes.solve();
+
+            return 0;
+        } catch (std::exception &e) {
+            std::cerr << "error: " << e.what() << "\n";
+            return 1;
+        } 
+    }else if(dim == 3){
+
+        try {
+            NavierStokes<3> navier_stokes(mesh_file_name, degree_velocity, degree_pressure, T, deltat, theta, nu, p_out, rho, case_type, vel, prec);
+
+            navier_stokes.setup();
+            navier_stokes.solve();
+
+            return 0;
+        } catch (std::exception &e) {
+            std::cerr << "error: " << e.what() << "\n";
+            return 1;
+        } 
     }
 
     return 1;

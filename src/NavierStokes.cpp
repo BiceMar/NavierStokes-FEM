@@ -280,6 +280,9 @@ NavierStokes<dim>::assemble_system()
 {
   pcout << "===============================================" << std::endl;
   pcout << "Assembling the system time step" << std::endl;
+  unsigned int neumann_boundary_id;
+  if constexpr(dim == 3) neumann_boundary_id = 1;
+  if constexpr(dim == 2) neumann_boundary_id = 3;
   
   const unsigned int dofs_per_cell = fe->dofs_per_cell;
   const unsigned int n_q           = quadrature->size();
@@ -399,7 +402,7 @@ NavierStokes<dim>::assemble_system()
         for (unsigned int f = 0; f < cell->n_faces(); ++f)
           {
             if (cell->face(f)->at_boundary() &&
-                cell->face(f)->boundary_id() == 1)
+                cell->face(f)->boundary_id() == neumann_boundary_id)
               {
                 fe_face_values.reinit(cell, f);
 
@@ -430,54 +433,71 @@ NavierStokes<dim>::assemble_system()
                                       solution_owned.block(0));
   system_matrix.add(1.0, lhs_matrix);
 
+  // Dirichlet boundary conditions
 
-  // Dirichlet boundary conditions.
-  {
-    std::map<types::global_dof_index, double>           boundary_values;
-    std::map<types::boundary_id, const Function<dim> *> boundary_functions;
+  std::map<types::global_dof_index, double>           boundary_values;
+  std::map<types::boundary_id, const Function<dim> *> boundary_functions;
+  Functions::ZeroFunction<dim> zero_function(dim + 1);
+  if constexpr(dim==3){
+    // Dirichlet boundary conditions for 3D case
+    {
 
-    Functions::ZeroFunction<dim> zero_function(dim + 1);
+      //Inflow boundary condition
+      inlet_velocity.set_time(time);
+      boundary_functions[0] = &inlet_velocity;
+      VectorTools::interpolate_boundary_values(dof_handler,
+                                                boundary_functions,
+                                                boundary_values,
+                                                ComponentMask({true, true, true, false}));
+                                                
+      boundary_functions.clear();
+      
+      //Cylinder Boundary Conditions
+      boundary_functions[6] = &zero_function;
+      VectorTools::interpolate_boundary_values(dof_handler,
+                                                boundary_functions,
+                                                boundary_values,
+                                                ComponentMask({true, true, true, false}));
+      boundary_functions.clear();
 
-    //Inflow boundary condition
+      // Up/Down Boundary Conditions
+      boundary_functions[2] = &zero_function;
+      boundary_functions[4] = &zero_function;
+      VectorTools::interpolate_boundary_values(dof_handler,
+                                              boundary_functions,
+                                              boundary_values,
+                                              ComponentMask(
+                                                {false, true, false, false})); 
+      boundary_functions.clear();
+
+      // Left/Right Boundary Conditions
+      boundary_functions[3] = &zero_function;
+      boundary_functions[5] = &zero_function;
+      VectorTools::interpolate_boundary_values(dof_handler,
+                                              boundary_functions,
+                                              boundary_values,
+                                              ComponentMask(
+                                                {false, false, true, false}));
+
+      boundary_functions.clear();
+      MatrixTools::apply_boundary_values(
+      boundary_values, system_matrix, solution, system_rhs, false);
+    }
+  }else{;
+
+    ComponentMask mask({true,true,false});
     inlet_velocity.set_time(time);
-    boundary_functions[0] = &inlet_velocity;
-    VectorTools::interpolate_boundary_values(dof_handler,
-                                               boundary_functions,
-                                               boundary_values,
-                                               ComponentMask({true, true, true, false}));
-                                               
-    boundary_functions.clear();
-    
-    //Cylinder Boundary Conditions
-    boundary_functions[6] = &zero_function;
-    VectorTools::interpolate_boundary_values(dof_handler,
-                                               boundary_functions,
-                                               boundary_values,
-                                               ComponentMask({true, true, true, false}));
-     boundary_functions.clear();
-
-    // Up/Down Boundary Conditions
+    boundary_functions[1] = &inlet_velocity;
+    boundary_functions[0] = &zero_function;
     boundary_functions[2] = &zero_function;
-    boundary_functions[4] = &zero_function;
+
     VectorTools::interpolate_boundary_values(dof_handler,
                                              boundary_functions,
-                                             boundary_values,
-                                             ComponentMask(
-                                               {false, true, false, false})); 
-    boundary_functions.clear();
+                                             boundary_values);
 
-    // Left/Right Boundary Conditions
-    boundary_functions[3] = &zero_function;
-    boundary_functions[5] = &zero_function;
-    VectorTools::interpolate_boundary_values(dof_handler,
-                                             boundary_functions,
-                                             boundary_values,
-                                             ComponentMask(
-                                               {false, false, true, false}));
-
-    boundary_functions.clear();
     MatrixTools::apply_boundary_values(
-    boundary_values, system_matrix, solution, system_rhs, false);
+      boundary_values, system_matrix, solution, system_rhs, true);
+  
   }
 }
 
@@ -589,15 +609,17 @@ void NavierStokes<dim>::output(const unsigned int &time_step) const
           dim, DataComponentInterpretation::component_is_part_of_vector);
   data_component_interpretation.push_back(
       DataComponentInterpretation::component_is_scalar);
-  std::vector<std::string> names = {"velocity",
-                                    "velocity",
-                                    "velocity",
-                                    "pressure"};
 
-  data_out.add_data_vector(dof_handler,
-                           solution,
-                           names,
-                           data_component_interpretation);
+  if constexpr(dim == 2)
+  	data_out.add_data_vector(dof_handler,
+  	                         solution,
+  	                         {"velocity","velocity","pressure"},
+  	                         data_component_interpretation);
+	else if constexpr(dim == 3)
+  	data_out.add_data_vector(dof_handler,
+  	                         solution,
+ 		                         {"velocity","velocity","velocity","pressure"},
+  	                         data_component_interpretation);
 
   std::vector<unsigned int> partition_int(mesh.n_active_cells());
   GridTools::get_subdomain_association(mesh, partition_int);
@@ -606,7 +628,12 @@ void NavierStokes<dim>::output(const unsigned int &time_step) const
 
   data_out.build_patches();
 
-  const std::string output_file_name = "output-stokes-3D";
+  std::string output_file_name;
+	if constexpr(dim == 2)
+  	output_file_name = "output-navier-stokes-2D";
+	else if constexpr(dim == 3)
+  	output_file_name = "output-navier-stokes-3D";
+
   data_out.write_vtu_with_pvtu_record("./",
                                       output_file_name,
                                       time_step,
@@ -683,8 +710,15 @@ void NavierStokes<dim>::calculate_coefficients()
   MPI_Allreduce(&lift_force, &total_lift, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
   // Every process now has the total drag and lift forces and can compute the coefficients
-  drag_coefficients.push_back(constant_coeff_3D * total_drag);
-  lift_coefficients.push_back(constant_coeff_3D * total_lift);
+  
+  if constexpr(dim == 2){
+    drag_coefficients.push_back(constant_coeff_3D * total_drag);
+    lift_coefficients.push_back(constant_coeff_3D * total_lift);
+  }
+  if constexpr(dim == 3){
+    drag_coefficients.push_back(constant_coeff_2D * total_drag);
+    lift_coefficients.push_back(constant_coeff_2D * total_lift);
+  }
 }
 
 template<int dim>
