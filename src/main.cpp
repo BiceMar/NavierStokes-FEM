@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
 
     std::cout << "number of processes: " << world_size << "." << std::endl;
 
-    std::string  mesh_file_name  = "../mesh/mesh-0.1.msh";
+    std::string  mesh_file_name  = "../mesh/mesh_2D_coarse.msh";
     unsigned int degree_velocity = 2; // Default degree for velocity
     unsigned int degree_pressure = 1; // Default degree for pressure
     double T = 1.0; // Default total time: 1.0
@@ -99,8 +99,8 @@ int main(int argc, char *argv[])
                 break;
             case 'c':
                 case_type = std::stoi(optarg);
-                if (case_type != 0 && case_type != 1) {
-                    std::cerr << "Invalid case_type: " << case_type << ". Must be either 0 or 1.\n";
+                if (case_type != 2 && case_type != 1) {
+                    std::cerr << "Invalid case_type: " << case_type << ". Must be either 2 or 1.\n";
                     print_usage();
                     std::exit(EXIT_FAILURE);
                 }

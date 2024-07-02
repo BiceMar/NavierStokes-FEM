@@ -168,7 +168,7 @@ NavierStokes<dim>::setup()
 
 template<int dim>
 void
-NavierStokes<dim>::assemble_time_independent()
+NavierStokes<dim>::assemble_constant_matrices()
 {
   pcout << "===============================================" << std::endl;
   pcout << "Assembling time independent component" << std::endl;
@@ -571,7 +571,7 @@ void NavierStokes<dim>::solve()
 
     assemble_system();
     solve_time_step();
-    calculate_coefficients();
+    calculate_coefficients(time);
     
     output(current_time_step);
   }
@@ -627,7 +627,7 @@ void NavierStokes<dim>::output(const unsigned int &time_step) const
 
 
 template<int dim>
-void NavierStokes<dim>::calculate_coefficients()
+void NavierStokes<dim>::calculate_coefficients(double t)
 {
   pcout << "===============================================" << std::endl;
   pcout << "Calcolo dei coefficienti" << std::endl;
@@ -644,6 +644,8 @@ void NavierStokes<dim>::calculate_coefficients()
   // Initialize variables to store drag and lift forces
   double drag_force = 0.0;
   double lift_force = 0.0;
+  double Re = 0.0;
+  Re = get_reynolds_number(t);
 
   // Set up extractors for velocity and pressure components
   FEValuesExtractors::Vector velocity(0);
@@ -685,22 +687,21 @@ void NavierStokes<dim>::calculate_coefficients()
   }
 
   // Declare total variables to store the summed results
-  double total_drag = 0.0, total_lift = 0.0;
+  double total_drag_force = 0.0, total_lift_force = 0.0;
 
   // Use MPI_Allreduce to sum the drag and lift forces across all processes, storing the result in all processes
-  MPI_Allreduce(&drag_force, &total_drag, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  MPI_Allreduce(&lift_force, &total_lift, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(&drag_force, &total_drag_force, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(&lift_force, &total_lift_force, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
   // Every process now has the total drag and lift forces and can compute the coefficients
   
-  if constexpr(dim == 2){
-    drag_coefficients.push_back(constant_coeff_3D * total_drag);
-    lift_coefficients.push_back(constant_coeff_3D * total_lift);
-  }
-  if constexpr(dim == 3){
-    drag_coefficients.push_back(constant_coeff_2D * total_drag);
-    lift_coefficients.push_back(constant_coeff_2D * total_lift);
-  }
+  drag_coefficients.push_back(get_drag_lift_multiplicative_const(t) * total_drag_force);
+  lift_coefficients.push_back(get_drag_lift_multiplicative_const(t) * total_lift_force);
+  
+  pcout << "Coefficints at time " << t << std::endl;
+  pcout << "Drag: " << drag_coefficients.back() << std::endl;
+  pcout << "Lift: " << lift_coefficients.back()<< std::endl;
+  pcout << "Re: " << Re << std::endl;
 }
 
 template<int dim>
@@ -710,10 +711,8 @@ void NavierStokes<dim>::write_coefficients_on_files()
 
   pcout << "===============================================" << std::endl;
   pcout << "Writing coefficients on file" << std::endl;
-
   if (current_rank == 0) // Only the master process writes to the files
   {
-    std::cout << "Reynolds number = " << Reynolds_number << std::endl;
 
     std::ofstream drag_file("drag_coefficient.csv"), lift_file("lift_coefficient.csv");
 

@@ -71,36 +71,48 @@ public:
   class InletVelocity : public Function<dim>
   {
   public:
-      InletVelocity(int case_type = 1, double vel = 0.45)   // Default to case 1 if not specified
+      InletVelocity(int case_type, double vel)   // Default to case 1 if not specified
           : Function<dim>(dim + 1), vel(vel), case_type(case_type) // Inizializza vel prima di case_type
       {}
 
-      double mean_value() const {
+      double mean_velocity_value(double t) const {
+          double base_velocity;
 
-        if constexpr(dim==2){
-          if (case_type == 1) return 2. * vel / 3.;
-          else return 2. * vel *std::sin(M_PI*this->get_time()/8.) / 3.;
-        }
-        else if constexpr(dim==3){
-          if (case_type == 1) return 4. * vel / 9.;
-          else return 4. * vel *std::sin(M_PI*this->get_time()/8.) / 9.;
-        }
+          // Handle 2D flow conditions
+          if constexpr(dim==2){
+              // Calculate the squared velocity profile based on the cylinder height and normalize by H squared.
+              // This simplifies the cylinder influence calculation as a portion of the height squared.
+              base_velocity = 4.0 * vel * std::pow(cylinder_height / 2.0, 2) / std::pow(cylinder_height, 2);
+              if (case_type == 1) return base_velocity;
+              if (case_type == 2) return base_velocity * std::sin(M_PI * t / 8.0);
+          }
+          // Handle 3D flow conditions
+          else if constexpr(dim==3){
+              // Calculate the fourth power of velocity profile based on the cylinder height and normalize by H to the fourth power.
+              // This assumes an even greater influence of the height due to additional dimension considerations.
+              base_velocity = 16.0 * vel * std::pow(cylinder_height / 2.0, 4) / std::pow(cylinder_height, 4);
+              if (case_type == 1) return base_velocity;
+              if (case_type == 2) return base_velocity * std::sin(M_PI * t / 8.0);
+          }
+          return 0.0; 
       }
 
       virtual void vector_value(const Point<dim> &p, Vector<double> &values) const override {
-        
+
           if constexpr(dim == 2){
-            if (case_type == 1) {
-              values[0] = 4.0 * vel * p[1] * (H - p[1]) / std::pow(H, 2);
-            }else{
-              values[0] = 4.0 * vel * p[1] * (H - p[1]) * std::sin(M_PI * this->get_time() / 8.0) /  std::pow(H, 2);
+            if (case_type == 1) { // 2D unsteady
+              values[0] = 4.0 * vel * p[1] * (cylinder_height - p[1]) / std::pow(cylinder_height, 2);
+            }
+            if (case_type == 2){ // 2D steady
+              values[0] = 4.0 * vel * p[1] * (cylinder_height - p[1]) * std::sin(M_PI * this->get_time() / 8.0) /  std::pow(cylinder_height, 2);
             }
           }
           else if constexpr(dim == 3){
-              if (case_type == 1) {
-                values[0] = 16.0 * vel * p[1] * p[2] *(H - p[1]) * (H - p[2]) / std::pow(H, 4);
-              } else {
-                values[0] = 16 * vel * p[1] * p[2] *(H - p[1]) * (H - p[2]) * std::sin(M_PI * this->get_time() / 8.0) / std::pow(H, 4);
+              if (case_type == 1) { // 3D unsteady
+                values[0] = 16.0 * vel * p[1] * p[2] *(cylinder_height - p[1]) * (cylinder_height - p[2]) / std::pow(cylinder_height, 4);
+              } 
+              if (case_type == 2) { // 3D steady
+                values[0] = 16.0 * vel * p[1] * p[2] *(cylinder_height - p[1]) * (cylinder_height - p[2]) * std::sin(M_PI * this->get_time() / 8.0) / std::pow(cylinder_height, 4);
               }
           }  
           for (unsigned int i = 1; i < dim + 1; ++i)
@@ -109,22 +121,24 @@ public:
 
       virtual double value(const Point<dim> &p, const unsigned int component = 0) const override {
           if (component == 0) {
-              if (case_type == 1) {
-                  return 16.0 * vel * p[1] * p[2] *(H - p[1]) * (H - p[2]) / std::pow(H, 4);
-              } else {
-                  return 16 * vel * p[1] * p[2] *(H - p[1]) * (H - p[2]) * std::sin(M_PI * this->get_time() / 8.0) / std::pow(H, 4);
-              }
-          } else {
-              return 0.0;
-          }
+            if constexpr(dim == 2){
+              if (case_type == 1) return 4.0 * vel * p[1] * (cylinder_height - p[1]) / std::pow(cylinder_height, 2);
+              if (case_type == 2) return 4.0 * vel * p[1] * (cylinder_height - p[1]) * std::sin(M_PI * this->get_time() / 8.0) /  std::pow(cylinder_height, 2);
+            }
+            if constexpr(dim == 3){
+              if (case_type == 1) return 16.0 * vel * p[1] * p[2] *(cylinder_height - p[1]) * (cylinder_height - p[2]) / std::pow(cylinder_height, 4);     
+              if (case_type == 2) return 16.0 * vel * p[1] * p[2] *(cylinder_height- p[1]) * (cylinder_height- p[2]) * std::sin(M_PI * this->get_time() / 8.0) / std::pow(cylinder_height, 4);
+            }
+          }             
+            return 0.0;
+    
       }
+    
+      double vel; 
+      int case_type; 
 
-  public:
-      double vel = 0.45; // [m/s] prev val: 2.25
-      double H = 0.41;
-      int case_type = 0; // Attributo per selezionare il caso per il calcolo
+     
   };
-
 
   // Function for the initial condition.
   class FunctionU0 : public Function<dim>
@@ -537,7 +551,7 @@ protected:
 
   // Calculate coefficient.
   void
-  calculate_coefficients();
+  calculate_coefficients(double t);
 
   // Write coefficients on file.
   void
@@ -586,11 +600,12 @@ protected:
 
 //----------------------------------------------------------------------------
   
-  // Cylinder diameter [m].
-  const double cylinder_diameter = 0.1;
+  // Cylinder diameter, fixed parameter
+  static constexpr double cylinder_diameter = 0.1;
 
-  // Cylinder height [m].
-  const double cylinder_height = 0.41;
+  // Cylinder height, fixed parameter
+  static constexpr double cylinder_height = 0.41;
+
   // Forcing term.
   ForcingTerm forcing_term;
 
@@ -600,20 +615,25 @@ protected:
   // Initial Condition
   FunctionU0 u_0;
 
-  // Vector of all the drag coefficients.
+  // Vector of all the drag coefficients
   std::vector<double> drag_coefficients; 
   
-  // Vector of all the drag coefficients.
+  // Vector of all the drag coefficients
   std::vector<double> lift_coefficients;
 
-  // Drag/Lift coefficient multiplicative constant.
-  const double constant_coeff_3D = 2.0 / (rho * inlet_velocity.mean_value() * inlet_velocity.mean_value() * cylinder_diameter * cylinder_height); 
+  // Drag/Lift coefficient multiplicative constant
+  double get_drag_lift_multiplicative_const(double t) {
+    double multiplicative_const;
 
-  // Drag/Lift coefficient multiplicative constant.
-  const double constant_coeff_2D = 2.0 / (rho * inlet_velocity.mean_value() * cylinder_diameter); 
+    if constexpr(dim == 2) multiplicative_const = 2.0 / (rho * inlet_velocity.mean_velocity_value(t) * inlet_velocity.mean_velocity_value(t) * cylinder_height); 
+    if constexpr(dim == 3) multiplicative_const = 2.0 / (rho * inlet_velocity.mean_velocity_value(t) * inlet_velocity.mean_velocity_value(t) * cylinder_diameter * cylinder_height); 
+    
+    return multiplicative_const; 
+  }
 
-  // Reynolds number.
-  const double Reynolds_number = inlet_velocity.mean_value() * cylinder_diameter / nu;
+  double get_reynolds_number(double t) {
+    return inlet_velocity.mean_velocity_value(t) * cylinder_diameter / nu;
+  }
 
 //----------------------------------------------------------------------------
 
@@ -646,14 +666,12 @@ protected:
   // DoFs relevant to current process in the velocity and pressure blocks.
   std::vector<IndexSet> block_relevant_dofs;
 
-  // (M / deltat - theta * A)
+  // cosntant matrix
   TrilinosWrappers::BlockSparseMatrix constant_matrix;
 
   // (M / deltat - (1 - theta) * A)
   TrilinosWrappers::BlockSparseMatrix rhs_matrix;
 
-  // A/deltat + A B^T; -B 0
-  TrilinosWrappers::BlockSparseMatrix constant_matrix;
 
   // Pressure mass matrix, needed for preconditioning. We use a block matrix for
   // convenience, but in practice we only look at the pressure-pressure block.
