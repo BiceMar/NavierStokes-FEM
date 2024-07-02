@@ -65,8 +65,6 @@ NavierStokes<dim>::setup()
     dof_handler.reinit(mesh);
     dof_handler.distribute_dofs(*fe);
 
-    // We want to reorder DoFs so that all velocity DoFs come first, and then
-    // all pressure DoFs.
     std::vector<unsigned int> block_component(dim + 1, 0);
     block_component[dim] = 1;
     DoFRenumbering::component_wise(dof_handler, block_component);
@@ -74,9 +72,6 @@ NavierStokes<dim>::setup()
     locally_owned_dofs = dof_handler.locally_owned_dofs();
     DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
 
-    // Besides the locally owned and locally relevant indices for the whole
-    // system (velocity and pressure), we will also need those for the
-    // individual velocity and pressure blocks.
     std::vector<types::global_dof_index> dofs_per_block =
       DoFTools::count_dofs_per_fe_block(dof_handler, block_component);
     const unsigned int n_u = dofs_per_block[0];
@@ -103,12 +98,6 @@ NavierStokes<dim>::setup()
 
     pcout << "  Initializing the sparsity pattern" << std::endl;
 
-    // Velocity DoFs interact with other velocity DoFs (the weak formulation has
-    // terms involving u times v), and pressure DoFs interact with velocity DoFs
-    // (there are terms involving p times v or u times q). However, pressure
-    // DoFs do not interact with other pressure DoFs (there are no terms
-    // involving p times q). We build a table to store this information, so that
-    // the sparsity pattern can be built accordingly.
     Table<2, DoFTools::Coupling> coupling(dim + 1, dim + 1);
     for (unsigned int c = 0; c < dim + 1; ++c)
       {
@@ -126,7 +115,6 @@ NavierStokes<dim>::setup()
     DoFTools::make_sparsity_pattern(dof_handler, coupling, sparsity);
     sparsity.compress();
 
-    
     // velocity mass term.
     for (unsigned int c = 0; c < dim + 1; ++c) {
       for (unsigned int d = 0; d < dim + 1; ++d) {
@@ -154,6 +142,7 @@ NavierStokes<dim>::setup()
               coupling[c][d] = DoFTools::none;
           }
       }
+
     TrilinosWrappers::BlockSparsityPattern sparsity_pressure_mass(
       block_owned_dofs, MPI_COMM_WORLD);
     DoFTools::make_sparsity_pattern(dof_handler,
@@ -161,17 +150,16 @@ NavierStokes<dim>::setup()
                                     sparsity_pressure_mass);
     sparsity_pressure_mass.compress();
 
-
     pcout << "  Initializing the matrices" << std::endl;
-
     pressure_mass.reinit(sparsity_pressure_mass);
     system_matrix.reinit(sparsity);
     rhs_matrix.reinit(sparsity);
-    lhs_matrix.reinit(sparsity);
+    constant_matrix.reinit(sparsity);
     velocity_mass.reinit(velocity_mass_sparsity);
 
     pcout << "  Initializing the system right-hand side" << std::endl;
     system_rhs.reinit(block_owned_dofs, MPI_COMM_WORLD);
+
     pcout << "  Initializing the solution vector" << std::endl;
     solution_owned.reinit(block_owned_dofs, MPI_COMM_WORLD);
     solution.reinit(block_owned_dofs, block_relevant_dofs, MPI_COMM_WORLD);
@@ -188,7 +176,7 @@ NavierStokes<dim>::assemble_time_independent()
   const unsigned int dofs_per_cell = fe->dofs_per_cell;
   const unsigned int n_q           = quadrature->size();
 
-  std::cout<<"Um: "<<inlet_velocity.vel<<" CASO: "<<inlet_velocity.case_type<<std::endl;
+  std::cout<<"Velocity: "<<inlet_velocity.vel<<". Velocity case type: "<<inlet_velocity.case_type<<std::endl;
   FEValues<dim>     fe_values(*fe,
                           *quadrature,
                           update_values | update_gradients |
@@ -200,7 +188,7 @@ NavierStokes<dim>::assemble_time_independent()
 
   std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
 
-  lhs_matrix = 0.0;
+  constant_matrix = 0.0;
   pressure_mass = 0.0;
   velocity_mass = 0.0;
 
@@ -220,7 +208,6 @@ NavierStokes<dim>::assemble_time_independent()
 
       for (unsigned int q = 0; q < n_q; ++q)
         {
-
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {
               for (unsigned int j = 0; j < dofs_per_cell; ++j)
@@ -238,7 +225,7 @@ NavierStokes<dim>::assemble_time_independent()
                                                           fe_values[velocity].value(j, q)) 
                                                           / deltat * fe_values.JxW(q);
                   
-                  
+                  // Matrix used for preconditioner
                   velocity_mass_cell_matrix(i, j) += scalar_product(fe_values[velocity].value(i, q),
                                                           fe_values[velocity].value(j, q)) 
                                                           / deltat * fe_values.JxW(q);
@@ -263,12 +250,12 @@ NavierStokes<dim>::assemble_time_independent()
 
       cell->get_dof_indices(dof_indices);
 
-      lhs_matrix.add(dof_indices, cell_lhs_matrix);
+      constant_matrix.add(dof_indices, cell_lhs_matrix);
       pressure_mass.add(dof_indices, cell_pressure_mass_matrix);
       velocity_mass.add(dof_indices, velocity_mass_cell_matrix);
     }
 
-  lhs_matrix.compress(VectorOperation::add);
+  constant_matrix.compress(VectorOperation::add);
   pressure_mass.compress(VectorOperation::add);
   velocity_mass.compress(VectorOperation::add);
 }
@@ -280,6 +267,7 @@ NavierStokes<dim>::assemble_system()
 {
   pcout << "===============================================" << std::endl;
   pcout << "Assembling the system time step" << std::endl;
+
   unsigned int neumann_boundary_id;
   if constexpr(dim == 3) neumann_boundary_id = 1;
   if constexpr(dim == 2) neumann_boundary_id = 3;
@@ -307,7 +295,7 @@ NavierStokes<dim>::assemble_system()
   std::vector<Tensor<1, dim>> velocity_loc(n_q);
   std::vector<Tensor<2, dim>> velocity_gradient_loc(n_q);
   // Declare a vector which will contain the values of the old solution at
-  // quadrature points (for the skew-symmetric form of the nonlinear term).
+  // quadrature points (used to build the skew-symmetric form of the nonlinear term).
   std::vector<Tensor<1, dim>> old_solution_values(n_q);
 
   system_matrix = 0.0;
@@ -367,8 +355,7 @@ NavierStokes<dim>::assemble_system()
                 fe_values.JxW(q);   
           }
 
-          // Forcing term calculation
-
+          // Forcing term 
           Vector<double> forcing_term_new_loc(dim);
           Vector<double> forcing_term_old_loc(dim);
 
@@ -431,59 +418,58 @@ NavierStokes<dim>::assemble_system()
   
   velocity_mass.block(0, 0).vmult_add(system_rhs.block(0),
                                       solution_owned.block(0));
-  system_matrix.add(1.0, lhs_matrix);
+  system_matrix.add(1.0, constant_matrix); // add the constant matrix to the system matrix
 
-  // Dirichlet boundary conditions
-
+  // Dirichlet BCs
   std::map<types::global_dof_index, double>           boundary_values;
   std::map<types::boundary_id, const Function<dim> *> boundary_functions;
   Functions::ZeroFunction<dim> zero_function(dim + 1);
+
+  // Dirichlet boundary conditions for 3D case
   if constexpr(dim==3){
-    // Dirichlet boundary conditions for 3D case
-    {
-
-      //Inflow boundary condition
-      inlet_velocity.set_time(time);
-      boundary_functions[0] = &inlet_velocity;
-      VectorTools::interpolate_boundary_values(dof_handler,
-                                                boundary_functions,
-                                                boundary_values,
-                                                ComponentMask({true, true, true, false}));
-                                                
-      boundary_functions.clear();
-      
-      //Cylinder Boundary Conditions
-      boundary_functions[6] = &zero_function;
-      VectorTools::interpolate_boundary_values(dof_handler,
-                                                boundary_functions,
-                                                boundary_values,
-                                                ComponentMask({true, true, true, false}));
-      boundary_functions.clear();
-
-      // Up/Down Boundary Conditions
-      boundary_functions[2] = &zero_function;
-      boundary_functions[4] = &zero_function;
-      VectorTools::interpolate_boundary_values(dof_handler,
+    //Inflow boundary condition
+    inlet_velocity.set_time(time);
+    boundary_functions[0] = &inlet_velocity;
+    VectorTools::interpolate_boundary_values(dof_handler,
                                               boundary_functions,
                                               boundary_values,
-                                              ComponentMask(
-                                                {false, true, false, false})); 
-      boundary_functions.clear();
-
-      // Left/Right Boundary Conditions
-      boundary_functions[3] = &zero_function;
-      boundary_functions[5] = &zero_function;
-      VectorTools::interpolate_boundary_values(dof_handler,
+                                              ComponentMask({true, true, true, false}));
+                                              
+    boundary_functions.clear();
+    
+    //Cylinder Boundary Conditions
+    boundary_functions[6] = &zero_function;
+    VectorTools::interpolate_boundary_values(dof_handler,
                                               boundary_functions,
                                               boundary_values,
-                                              ComponentMask(
-                                                {false, false, true, false}));
+                                              ComponentMask({true, true, true, false}));
+    boundary_functions.clear();
 
-      boundary_functions.clear();
-      MatrixTools::apply_boundary_values(
-      boundary_values, system_matrix, solution, system_rhs, false);
-    }
-  }else{;
+    // Up/Down Boundary Conditions
+    boundary_functions[2] = &zero_function;
+    boundary_functions[4] = &zero_function;
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                            boundary_functions,
+                                            boundary_values,
+                                            ComponentMask(
+                                              {false, true, false, false})); 
+    boundary_functions.clear();
+
+    // Left/Right Boundary Conditions
+    boundary_functions[3] = &zero_function;
+    boundary_functions[5] = &zero_function;
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                            boundary_functions,
+                                            boundary_values,
+                                            ComponentMask(
+                                              {false, false, true, false}));
+
+    boundary_functions.clear();
+    MatrixTools::apply_boundary_values(
+    boundary_values, system_matrix, solution, system_rhs, false);
+  }
+  // Dirichlet boundary conditions for 2D case
+  else{
 
     ComponentMask mask({true,true,false});
     inlet_velocity.set_time(time);
@@ -511,6 +497,7 @@ NavierStokes<dim>::solve_time_step()
 
   SolverGMRES<TrilinosWrappers::MPI::BlockVector> solver(solver_control);
 
+  // Preconditioners
   if(prec == 0){
     PreconditionBlockDiagonal preconditioner;
     preconditioner.initialize(system_matrix.block(0, 0),
@@ -557,8 +544,6 @@ NavierStokes<dim>::solve_time_step()
 
     solution = solution_owned;
   }
-
-
 }
 
 template<int dim>
@@ -568,30 +553,27 @@ void NavierStokes<dim>::solve()
   time = 0.0;
 
   // assemble constant matrices
-  assemble_time_independent();
+  assemble_constant_matrices();
 
   u_0.set_time(time);
   VectorTools::interpolate(dof_handler, u_0, solution_owned);
   solution = solution_owned;
 
-  // calculate coefficients
-  calculate_coefficients();
-
-  unsigned int time_step = 0;
+  unsigned int current_time_step = 0;
 
   while (time < T)
   {
     time += deltat;
-    ++time_step;
+    ++current_time_step;
 
-     pcout << "n = " << std::setw(3) << time_step << ", t = " << std::setw(5)
+     pcout << "n = " << std::setw(3) << current_time_step << ", t = " << std::setw(5)
             << time << ":\n" << std::flush;
 
     assemble_system();
     solve_time_step();
     calculate_coefficients();
     
-    output(time_step);
+    output(current_time_step);
   }
   write_coefficients_on_files();
 }

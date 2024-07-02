@@ -1,6 +1,7 @@
 #include <getopt.h>
 #include "NavierStokes.hpp"
 #include "NavierStokes.cpp"
+
 void print_usage() {
     std::cout << "Usage: ./navier_stokes_solver\n --mesh <mesh_file>\n --degree_velocity <degree>\n --degree_pressure <degree>\n --T <total_time>\n --deltat <time_step>\n --theta <theta>\n --nu <viscosity>\n --p_out <pressure>\n --rho <density>\n --case_type <case_type>\n --vel <velocity>\n --prec <preconditioner>\n --dim <dim>\n";
 }
@@ -11,12 +12,10 @@ int main(int argc, char *argv[])
 
     int world_size;
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-
     int world_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
     std::cout << "number of processes: " << world_size << "." << std::endl;
-
 
     std::string  mesh_file_name  = "../mesh/mesh-0.1.msh";
     unsigned int degree_velocity = 2; // Default degree for velocity
@@ -66,12 +65,28 @@ int main(int argc, char *argv[])
                 break;
             case 'T':
                 T = std::stod(optarg);
+                if (T <= 0) {
+                    std::cerr << "Invalid time: " << T << ". Must be greater than 0.\n";
+                    print_usage();
+                    std::exit(EXIT_FAILURE);
+                }
                 break;
             case 'd':
                 deltat = std::stod(optarg);
+                if (deltat <= 0) {
+                    std::cerr << "Invalid deltat: " << deltat << ". Must be greater than 0.\n";
+                    print_usage();
+                    std::exit(EXIT_FAILURE);
+                }
                 break;
             case 't':
                 theta = std::stod(optarg);
+                if (theta < 0.0 || theta > 1.0) {
+                    std::cerr << "Invalid theta: " << theta << ". Must be in [0.0, 1.0].\n";
+                    print_usage();
+                    std::exit(EXIT_FAILURE);
+                }
+                break;
                 break;
             case 'n':
                 nu = std::stod(optarg);
@@ -126,8 +141,8 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    // 2D case
     if(dim == 2){
-
         try {
             NavierStokes<2> navier_stokes(mesh_file_name, degree_velocity, degree_pressure, T, deltat, theta, nu, p_out, rho, case_type, vel, prec);
 
@@ -135,12 +150,14 @@ int main(int argc, char *argv[])
             navier_stokes.solve();
 
             return 0;
+
         } catch (std::exception &e) {
             std::cerr << "error: " << e.what() << "\n";
             return 1;
         } 
-    }else if(dim == 3){
-
+    }
+    // 3D case
+    if(dim == 3){
         try {
             NavierStokes<3> navier_stokes(mesh_file_name, degree_velocity, degree_pressure, T, deltat, theta, nu, p_out, rho, case_type, vel, prec);
 
@@ -148,6 +165,7 @@ int main(int argc, char *argv[])
             navier_stokes.solve();
 
             return 0;
+
         } catch (std::exception &e) {
             std::cerr << "error: " << e.what() << "\n";
             return 1;

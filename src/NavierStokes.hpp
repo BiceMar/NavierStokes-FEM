@@ -36,8 +36,6 @@
 
 using namespace dealii;
 
-// Class implementing a solver for the Stokes problem.
-
 template<int dim>
 class NavierStokes
 {
@@ -73,7 +71,7 @@ public:
   class InletVelocity : public Function<dim>
   {
   public:
-      InletVelocity(int case_type = 1, double vel = 2.25)   // Default to case 1 if not specified
+      InletVelocity(int case_type = 1, double vel = 0.45)   // Default to case 1 if not specified
           : Function<dim>(dim + 1), vel(vel), case_type(case_type) // Inizializza vel prima di case_type
       {}
 
@@ -130,15 +128,7 @@ public:
 
   // Function for the initial condition.
   class FunctionU0 : public Function<dim>
-  {
-  //public:
-  //  virtual double
-  //  value(const Point<dim> &p,
-  //        const unsigned int /component/ = 0) const override
-  //  {
-  //    return p[0] * (1.0 - p[0]) * p[1] * (1.0 - p[1]) * p[2] * (1.0 - p[2]);
-  //  }
-  
+  {  
   public:
     virtual void
     vector_value(const Point<dim> & /*p*/,
@@ -531,7 +521,7 @@ protected:
   // Assemble system. We also assemble the pressure mass matrix (needed for the
   // preconditioner).
   void
-  assemble_time_independent();
+  assemble_constant_matrices();
 
   // Assemble system for each time step.
   void assemble_system();
@@ -657,7 +647,7 @@ protected:
   std::vector<IndexSet> block_relevant_dofs;
 
   // (M / deltat - theta * A)
-  TrilinosWrappers::BlockSparseMatrix lhs_matrix;
+  TrilinosWrappers::BlockSparseMatrix constant_matrix;
 
   // (M / deltat - (1 - theta) * A)
   TrilinosWrappers::BlockSparseMatrix rhs_matrix;
