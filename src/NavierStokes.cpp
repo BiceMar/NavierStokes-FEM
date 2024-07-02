@@ -213,7 +213,7 @@ NavierStokes<dim>::assemble_constant_matrices()
               for (unsigned int j = 0; j < dofs_per_cell; ++j)
                 {
                   
-                  // Viscosity term (A * Theta)
+                  // Viscosity term A * Theta
                   cell_lhs_matrix(i, j) +=
                     nu * theta *
                     scalar_product(fe_values[velocity].gradient(i, q),
@@ -224,18 +224,13 @@ NavierStokes<dim>::assemble_constant_matrices()
                   cell_lhs_matrix(i, j) += scalar_product(fe_values[velocity].value(i, q),
                                                           fe_values[velocity].value(j, q)) 
                                                           / deltat * fe_values.JxW(q);
-                  
-                  // Matrix used for preconditioner
-                  velocity_mass_cell_matrix(i, j) += scalar_product(fe_values[velocity].value(i, q),
-                                                          fe_values[velocity].value(j, q)) 
-                                                          / deltat * fe_values.JxW(q);
                     
-                  // Pressure term in the momentum equation.
+                  // Pressure term in the momentum equation
                   cell_lhs_matrix(i, j) -= fe_values[velocity].divergence(i, q) *
                                        fe_values[pressure].value(j, q) *
                                        fe_values.JxW(q);
 
-                  // Pressure term in the continuity equation.
+                  // Pressure term in the continuity equation
                   cell_lhs_matrix(i, j) -= fe_values[velocity].divergence(j, q) *
                                        fe_values[pressure].value(i, q) *
                                        fe_values.JxW(q);
@@ -243,7 +238,12 @@ NavierStokes<dim>::assemble_constant_matrices()
                   // Pressure mass matrix.
                   cell_pressure_mass_matrix(i, j) +=
                     fe_values[pressure].value(i, q) *
-                    fe_values[pressure].value(j, q) / nu * fe_values.JxW(q);                     
+                    fe_values[pressure].value(j, q) / nu * fe_values.JxW(q);
+                  
+                  // Matrix used for preconditioner
+                  velocity_mass_cell_matrix(i, j) += scalar_product(fe_values[velocity].value(i, q),
+                                                          fe_values[velocity].value(j, q)) 
+                                                          / deltat * fe_values.JxW(q);                     
                 }
             }
         }
@@ -261,126 +261,84 @@ NavierStokes<dim>::assemble_constant_matrices()
 }
 
 
-template<int dim>
-void 
-NavierStokes<dim>::assemble_system()
+template <int dim>
+void NavierStokes<dim>::assemble(const double &time)
 {
   pcout << "===============================================" << std::endl;
-  pcout << "Assembling the system time step" << std::endl;
+  pcout << "Assembling the system" << std::endl;
 
-  unsigned int neumann_boundary_id;
-  if constexpr(dim == 3) neumann_boundary_id = 1;
-  if constexpr(dim == 2) neumann_boundary_id = 3;
-  
   const unsigned int dofs_per_cell = fe->dofs_per_cell;
-  const unsigned int n_q           = quadrature->size();
-  const unsigned int n_q_face      = quadrature_face->size();
+  const unsigned int n_q = quadrature->size();
 
-  FEValues<dim>     fe_values(*fe,
+  FEValues<dim> fe_values(*fe,
                           *quadrature,
                           update_values | update_gradients |
-                            update_quadrature_points | update_JxW_values);
-
+                              update_quadrature_points | update_JxW_values);
   FEFaceValues<dim> fe_face_values(*fe,
-                                   *quadrature_face,
-                                   update_values | update_normal_vectors |
-                                     update_JxW_values);
+                                       *quadrature_face,
+                                       update_values | update_quadrature_points |
+                                           update_normal_vectors |
+                                           update_JxW_values);
 
-  FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
-  Vector<double>     cell_rhs(dofs_per_cell);
-  FullMatrix<double> cell_Fp_matrix(dofs_per_cell, dofs_per_cell);
+  FullMatrix<double> non_linear_contribution(dofs_per_cell, dofs_per_cell);
+  Vector<double> cell_rhs(dofs_per_cell);
 
   std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
 
-  std::vector<Tensor<1, dim>> velocity_loc(n_q);
-  std::vector<Tensor<2, dim>> velocity_gradient_loc(n_q);
-  // Declare a vector which will contain the values of the old solution at
-  // quadrature points (used to build the skew-symmetric form of the nonlinear term).
-  std::vector<Tensor<1, dim>> old_solution_values(n_q);
-
-  system_matrix = 0.0;
-  system_rhs    = 0.0;
+  system_matrix.copy_from(constant_matrix);
+  system_rhs = 0.0;
 
   FEValuesExtractors::Vector velocity(0);
   FEValuesExtractors::Scalar pressure(dim);
 
-  // Declare tensors to store the old solution value at a set quadrature
-  // point and part of the nonlinear term (for the skew-symmetric form of the nonlinear term).
-  Tensor<1, dim> local_old_solution_value;
-  Tensor<1, dim> nonlinear_term;
-  Tensor<1, dim> transpose_term;
+  std::vector<Tensor<1, dim>> velocity_loc(n_q);
+  std::vector<Tensor<2,dim>> velocity_gradient_loc(n_q);
+  
 
-  for (const auto &cell : dof_handler.active_cell_iterators())
+  unsigned int neumann_boundary_id;
+  if constexpr(dim==2) neumann_boundary_id=3;
+  if constexpr(dim==3) neumann_boundary_id=1;
+  
+	for (const auto &cell : dof_handler.active_cell_iterators())
   {
     if (!cell->is_locally_owned())
       continue;
 
     fe_values.reinit(cell);
 
-    cell_matrix = 0.0;
-    cell_rhs    = 0.0;
+    non_linear_contribution = 0.0;
+    cell_rhs = 0.0;
 
     fe_values[velocity].get_function_values(solution, velocity_loc);
-    fe_values[velocity].get_function_gradients(solution, velocity_gradient_loc);
-
-    // Calculate the value of the previous solution at quadrature points
-    fe_values[velocity].get_function_values(solution, old_solution_values);
 
     for (unsigned int q = 0; q < n_q; ++q)
     {
-      
+
+      Vector<double> forcing_term_loc(dim);
+      forcing_term.vector_value(fe_values.quadrature_point(q),
+                                forcing_term_loc);
+      Tensor<1, dim> forcing_term_tensor;
+      for (unsigned int d = 0; d < dim; ++d)
+        forcing_term_tensor[d] = forcing_term_loc[d];
+
       for (unsigned int i = 0; i < dofs_per_cell; ++i)
+      {
+        for (unsigned int j = 0; j < dofs_per_cell; ++j)
         {
-          for (unsigned int j = 0; j < dofs_per_cell; ++j)
-          { 
-            // Reset the nonlinear and transpose terms.
-            nonlinear_term = 0.0;
-            transpose_term = 0.0;
-
-            for (unsigned int k = 0; k < dim; k++) {
-              for (unsigned int l = 0; l < dim; l++) {
-                // Calculate (u . nabla) u.
-                nonlinear_term[k] += old_solution_values[q][l] *
-                                      fe_values[velocity].gradient(j, q)[k][l];
-                // Calculate (nabla u)^T u.
-                transpose_term[k] += old_solution_values[q][k] *
-                                      fe_values[velocity].gradient(j, q)[l][k];
-              }
-            }
-
-            // Add the skew-symmetric term (u . nabla) u + (nabla u)^T u to the matrix.
-            cell_matrix(i, j) +=
-                0.5 * (scalar_product(nonlinear_term, fe_values[velocity].value(i, q)) +
-                        scalar_product(transpose_term, fe_values[velocity].value(i, q))) *
-                fe_values.JxW(q);   
-          }
-
-          // Forcing term 
-          Vector<double> forcing_term_new_loc(dim);
-          Vector<double> forcing_term_old_loc(dim);
-
-          forcing_term.set_time(time);
-          forcing_term.vector_value(fe_values.quadrature_point(q),
-                                    forcing_term_new_loc);
-
-          forcing_term.set_time(time - deltat);
-          forcing_term.vector_value(fe_values.quadrature_point(q),
-                                    forcing_term_old_loc);
-
-          Tensor<1, dim> forcing_term_tensor_new;
-          Tensor<1, dim> forcing_term_tensor_old;
-
-          for (unsigned int d = 0; d < dim; ++d)
-          {
-            forcing_term_tensor_new[d] = forcing_term_new_loc[d];
-            forcing_term_tensor_old[d] = forcing_term_old_loc[d];
-          }   
-          
-          cell_rhs(i) += scalar_product(theta  * forcing_term_tensor_new +
-                                  (1.0 - theta) * forcing_term_tensor_old,
-                                        fe_values[velocity].value(i, q)) *
-                        fe_values.JxW(q);
+          // Semi-implicit treatment of the non linear term
+          non_linear_contribution(i, j) += velocity_loc[q] * fe_values[velocity].gradient(j, q) *
+                               fe_values[velocity].value(i, q) *
+                               fe_values.JxW(q);
         }
+
+        // Forcing term
+        cell_rhs(i) += scalar_product(forcing_term_tensor,
+                                      fe_values[velocity].value(i, q)) *
+                      fe_values.JxW(q);
+        cell_rhs(i) += scalar_product(velocity_loc[q],
+                                      fe_values[velocity].value(i, q)) /
+                      deltat * fe_values.JxW(q);
+      }
     }
 
     // Neumann BCs
@@ -393,7 +351,7 @@ NavierStokes<dim>::assemble_system()
               {
                 fe_face_values.reinit(cell, f);
 
-                for (unsigned int q = 0; q < n_q_face; ++q)
+                for (unsigned int q = 0; q < n_q; ++q)
                   {
                     for (unsigned int i = 0; i < dofs_per_cell; ++i)
                       {
@@ -407,19 +365,16 @@ NavierStokes<dim>::assemble_system()
               }
           }
       }
-      cell->get_dof_indices(dof_indices);
 
-      system_matrix.add(dof_indices, cell_matrix);
-      system_rhs.add(dof_indices, cell_rhs);    
+    cell->get_dof_indices(dof_indices);
+
+    system_matrix.add(dof_indices, non_linear_contribution);
+    system_rhs.add(dof_indices, cell_rhs);
   }
 
   system_matrix.compress(VectorOperation::add);
   system_rhs.compress(VectorOperation::add);
   
-  velocity_mass.block(0, 0).vmult_add(system_rhs.block(0),
-                                      solution_owned.block(0));
-  system_matrix.add(1.0, constant_matrix); // add the constant matrix to the system matrix
-
   // Dirichlet BCs
   std::map<types::global_dof_index, double>           boundary_values;
   std::map<types::boundary_id, const Function<dim> *> boundary_functions;
@@ -468,24 +423,36 @@ NavierStokes<dim>::assemble_system()
     MatrixTools::apply_boundary_values(
     boundary_values, system_matrix, solution, system_rhs, false);
   }
+  
   // Dirichlet boundary conditions for 2D case
   else{
 
     ComponentMask mask({true,true,false});
     inlet_velocity.set_time(time);
     boundary_functions[1] = &inlet_velocity;
-    boundary_functions[0] = &zero_function;
-    boundary_functions[2] = &zero_function;
 
     VectorTools::interpolate_boundary_values(dof_handler,
                                              boundary_functions,
-                                             boundary_values);
+                                             boundary_values,
+                                             mask);
+
+    boundary_functions[0] = &zero_function;
+    boundary_functions[2] = &zero_function;
+    boundary_functions[4] = &zero_function;
+    boundary_functions[5] = &zero_function;
+    boundary_functions[6] = &zero_function;
+
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                             boundary_functions,
+                                             boundary_values,
+                                             mask);
 
     MatrixTools::apply_boundary_values(
       boundary_values, system_matrix, solution, system_rhs, true);
   
   }
 }
+
 
 template<int dim>
 void
@@ -497,7 +464,7 @@ NavierStokes<dim>::solve_time_step()
 
   SolverGMRES<TrilinosWrappers::MPI::BlockVector> solver(solver_control);
 
-  // Preconditioners
+  // Apply preconditioners
   if(prec == 0){
     PreconditionBlockDiagonal preconditioner;
     preconditioner.initialize(system_matrix.block(0, 0),
@@ -552,7 +519,7 @@ void NavierStokes<dim>::solve()
   pcout << "===============================================" << std::endl;
   time = 0.0;
 
-  // assemble constant matrices
+  // Assemble constant matrices
   assemble_constant_matrices();
 
   u_0.set_time(time);
@@ -569,7 +536,7 @@ void NavierStokes<dim>::solve()
      pcout << "n = " << std::setw(3) << current_time_step << ", t = " << std::setw(5)
             << time << ":\n" << std::flush;
 
-    assemble_system();
+    assemble(time);
     solve_time_step();
     calculate_coefficients(time);
     
@@ -644,8 +611,8 @@ void NavierStokes<dim>::calculate_coefficients(double t)
   // Initialize variables to store drag and lift forces
   double drag_force = 0.0;
   double lift_force = 0.0;
-  double Re = 0.0;
-  Re = get_reynolds_number(t);
+
+  double Re = get_reynolds_number(t);
 
   // Set up extractors for velocity and pressure components
   FEValuesExtractors::Vector velocity(0);
@@ -711,14 +678,14 @@ void NavierStokes<dim>::write_coefficients_on_files()
 
   pcout << "===============================================" << std::endl;
   pcout << "Writing coefficients on file" << std::endl;
-  if (current_rank == 0) // Only the master process writes to the files
+  if (current_rank == 0) 
   {
 
     std::ofstream drag_file("drag_coefficient.csv"), lift_file("lift_coefficient.csv");
 
-    if (drag_file && lift_file) // Check if files are successfully opened
+    if (drag_file && lift_file)
     {
-      // Write headers to both files
+      // Write headers
       drag_file << "Time,DragCoefficient" << std::endl;
       lift_file << "Time,LiftCoefficient" << std::endl;
 

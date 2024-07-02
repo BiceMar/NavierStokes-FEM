@@ -3,7 +3,7 @@
 #include "NavierStokes.cpp"
 
 void print_usage() {
-    std::cout << "Usage: ./navier_stokes_solver\n --mesh <mesh_file>\n --degree_velocity <degree>\n --degree_pressure <degree>\n --T <total_time>\n --deltat <time_step>\n --theta <theta>\n --nu <viscosity>\n --p_out <pressure>\n --rho <density>\n --case_type <case_type>\n --vel <velocity>\n --prec <preconditioner>\n --dim <dim>\n";
+    std::cout << "Usage: ./navier_stokes_solver\n --mesh <mesh_file>\n --degree_velocity <degree>\n --degree_pressure <degree>\n --T <total_time>\n --deltat <time_step>\n --theta <theta>\n --nu <viscosity>\n --p_out <pressure>\n --rho <density>\n --velocity_case_type <case_type>\n --vel <velocity>\n --prec <preconditioner>\n --dim <dim>\n";
 }
 
 int main(int argc, char *argv[])
@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
     double nu = 0.001; // Default kinematic viscosity
     double p_out = 0.0; // Default outlet pressure
     double rho = 1.0; // Default density
-    int case_type = 1; // Default case type
+    unsigned int velocity_case_type = 1; // Default case type
     double vel = 0.45; // Default velocity: 2.25
     unsigned int  prec = 0; // Default prec: 0
     unsigned int dim = 3; // Default dim: 3
@@ -98,9 +98,9 @@ int main(int argc, char *argv[])
                 rho = std::stod(optarg);
                 break;
             case 'c':
-                case_type = std::stoi(optarg);
-                if (case_type != 2 && case_type != 1) {
-                    std::cerr << "Invalid case_type: " << case_type << ". Must be either 2 or 1.\n";
+                velocity_case_type = std::stoi(optarg);
+                if (velocity_case_type != 2 && velocity_case_type != 1) {
+                    std::cerr << "Invalid velocity case type: " << velocity_case_type << ". Must be either 2 or 1.\n";
                     print_usage();
                     std::exit(EXIT_FAILURE);
                 }
@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
             case 'e':
                 prec = std::stoi(optarg);
                 if (prec > 3) {
-                    std::cerr << "Invalid preconditioner: " << case_type << ". Must be either 0 or 1 or 2 or 3.\n";
+                    std::cerr << "Invalid preconditioner: " << prec << ". Must be either 0 or 1 or 2 or 3.\n";
                     print_usage();
                     std::exit(EXIT_FAILURE);
                 }
@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
             case 'i':
                 dim = std::stoi(optarg);
                 if (dim != 2 && dim != 3) {
-                    std::cerr << "Invalid dimension: " << case_type << ". Must be either 2 or 3.\n";
+                    std::cerr << "Invalid dimension: " << dim << ". Must be either 2 or 3.\n";
                     print_usage();
                     std::exit(EXIT_FAILURE);
                 }
@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
     // 2D case
     if(dim == 2){
         try {
-            NavierStokes<2> navier_stokes(mesh_file_name, degree_velocity, degree_pressure, T, deltat, theta, nu, p_out, rho, case_type, vel, prec);
+            NavierStokes<2> navier_stokes(mesh_file_name, degree_velocity, degree_pressure, T, deltat, theta, nu, p_out, rho, velocity_case_type, vel, prec);
 
             navier_stokes.setup();
             navier_stokes.solve();
@@ -156,10 +156,11 @@ int main(int argc, char *argv[])
             return 1;
         } 
     }
+    
     // 3D case
     if(dim == 3){
         try {
-            NavierStokes<3> navier_stokes(mesh_file_name, degree_velocity, degree_pressure, T, deltat, theta, nu, p_out, rho, case_type, vel, prec);
+            NavierStokes<3> navier_stokes(mesh_file_name, degree_velocity, degree_pressure, T, deltat, theta, nu, p_out, rho, velocity_case_type, vel, prec);
 
             navier_stokes.setup();
             navier_stokes.solve();

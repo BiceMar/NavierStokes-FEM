@@ -140,6 +140,46 @@ public:
      
   };
 
+  // Neumann BCs
+  class FunctionH : public Function<dim>
+  {
+  public:
+    // Constructor.
+    FunctionH()
+    {}
+
+    virtual double
+    value(const Point<dim> & /*p*/, const unsigned int /*component*/) const override
+    {
+      return 0.;
+    }
+  };
+
+  
+  // Dirichlet BCs
+  class FunctionG : public Function<dim>
+  {
+  public:
+    // Constructor.
+    FunctionG() : Function<dim>(dim + 1)
+    {
+    }
+
+    virtual void
+    vector_value(const Point<dim> & /*p*/, Vector<double> &values) const override
+    {
+      for (unsigned int i = 0; i < dim + 1; ++i)
+        values[i] = 0.0;
+    }
+
+    virtual double
+    value(const Point<dim> & /*p*/, const unsigned int /*component*/) const override
+    {
+      return 0.;
+    }
+  };
+
+
   // Function for the initial condition.
   class FunctionU0 : public Function<dim>
   {  
@@ -532,70 +572,66 @@ public:
 
 protected:
 
-  // Assemble system. We also assemble the pressure mass matrix (needed for the
-  // preconditioner).
+  // Assemble constant matrices
   void
   assemble_constant_matrices();
 
-  // Assemble system for each time step.
-  void assemble_system();
+  // Assemble system 
+  void assemble(const double &time);
 
-  // Solve system.
+  // Solve system
   void
   solve_time_step();
 
-
-  // Output results.
+  // Output results
   void
   output(const unsigned int &time_step) const;
 
-  // Calculate coefficient.
+  // Calculate coefficient
   void
   calculate_coefficients(double t);
 
-  // Write coefficients on file.
+  // Write coefficients on file
   void
   write_coefficients_on_files();
   
-  // Mesh file name.
+  // Mesh file
   const std::string mesh_file_name;
  
-  // Polynomial degree used for velocity.
+  // Polynomial degree
   const unsigned int degree_velocity;
-
-  // Polynomial degree used for pressure.
   const unsigned int degree_pressure;
 
   // Total Time 
   double T;
 
-  // Time step.
+  // Time step
   double deltat;
 
   // Theta parameter of the theta method.
   double theta;
 
-  // Kinematic viscosity [m2/s].
+  // Kinematic viscosity [m2/s]
   double nu = 0.001;   
 
-  // Outlet pressure [Pa].
+  // Outlet pressure [Pa]
   double p_out = 10.0;
 
-  // density [Kg/m^3].
+  // density [Kg/m^3]
   double rho = 1.0; 
 
-  // Inlet velocity.
+  // Inlet velocity
   InletVelocity inlet_velocity;
 
-  int prec = 0; // 0->diagonal, 1->SIMPLE, 2->ASIMPLE
+  int prec = 0; // 0->diagonal, 1->SIMPLE, 2->ASIMPLE, 2->yosida
 
-  // Number of MPI processes.
+  // MPI processes
   const unsigned int mpi_size;
 
-  // This MPI process.
+  // Current MPI process
   const unsigned int mpi_rank;
 
-  // Parallel output stream.
+  // Parallel output stream
   ConditionalOStream pcout;
 
 //----------------------------------------------------------------------------
@@ -606,14 +642,20 @@ protected:
   // Cylinder height, fixed parameter
   static constexpr double cylinder_height = 0.41;
 
-  // Forcing term.
+  // Forcing term
   ForcingTerm forcing_term;
 
-  // Current Time
+  // Time
   double time;
 
   // Initial Condition
   FunctionU0 u_0;
+
+  // function g
+  FunctionG function_g;
+
+  // function h
+  FunctionH function_h;
 
   // Vector of all the drag coefficients
   std::vector<double> drag_coefficients; 
@@ -621,7 +663,7 @@ protected:
   // Vector of all the drag coefficients
   std::vector<double> lift_coefficients;
 
-  // Drag/Lift coefficient multiplicative constant
+  // Retrive Drag/Lift coefficient multiplicative constant
   double get_drag_lift_multiplicative_const(double t) {
     double multiplicative_const;
 
@@ -631,6 +673,7 @@ protected:
     return multiplicative_const; 
   }
 
+  // Retrive Reynolds number
   double get_reynolds_number(double t) {
     return inlet_velocity.mean_velocity_value(t) * cylinder_diameter / nu;
   }
