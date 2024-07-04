@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
 
     std::cout << "number of processes: " << world_size << "." << std::endl;
 
-    std::string  mesh_file_name  = "../mesh/mesh_2D_coarse.msh";
+    std::string  mesh_file_name  = "../mesh/mesh-0.1.msh";
     unsigned int degree_velocity = 2; // Default degree for velocity
     unsigned int degree_pressure = 1; // Default degree for pressure
     double T = 1.0; // Default total time: 1.0

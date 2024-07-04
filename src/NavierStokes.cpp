@@ -465,52 +465,72 @@ NavierStokes<dim>::solve_time_step()
   SolverGMRES<TrilinosWrappers::MPI::BlockVector> solver(solver_control);
 
   // Apply preconditioners
-  if(prec == 0){
+if (prec == 0) {
     PreconditionBlockDiagonal preconditioner;
     preconditioner.initialize(system_matrix.block(0, 0),
                               pressure_mass.block(1, 1));
     pcout << "Solving the linear system" << std::endl;
+
+    Timer timer;
+    timer.start();
     solver.solve(system_matrix, solution_owned, system_rhs, preconditioner);
-     pcout << "  " << solver_control.last_step() << " GMRES iterations"
-        << std::endl;
+    timer.stop();
+    
+    pcout << "  " << solver_control.last_step() << " GMRES iterations" << std::endl;
+    pcout << "  Time taken: " << timer.wall_time() << " seconds" << std::endl;
 
     solution = solution_owned;
-  }else if(prec == 1){
-    pcout << "Preconditioner simple" << std::endl;
-    PreconditionSIMPLE preconditioner;  
+} else if (prec == 1) {
+    pcout << "Preconditioner SIMPLE" << std::endl;
+    PreconditionSIMPLE preconditioner;
     preconditioner.initialize(
             system_matrix.block(0, 0), system_matrix.block(1, 0),
             system_matrix.block(0, 1), solution_owned);
     pcout << "Solving the linear system" << std::endl;
+
+    Timer timer;
+    timer.start();
     solver.solve(system_matrix, solution_owned, system_rhs, preconditioner);
-     pcout << "  " << solver_control.last_step() << " GMRES iterations"
-        << std::endl;
+    timer.stop();
+    
+    pcout << "  " << solver_control.last_step() << " GMRES iterations" << std::endl;
+    pcout << "  Time taken: " << timer.wall_time() << " seconds" << std::endl;
 
     solution = solution_owned;
-  }else if(prec == 2){
-    PreconditionaSIMPLE preconditioner;  
-    pcout << "Preconditioner asimple" << std::endl;
+} else if (prec == 2) {
+    PreconditionaSIMPLE preconditioner;
+    pcout << "Preconditioner aSIMPLE" << std::endl;
     preconditioner.initialize(
             system_matrix.block(0, 0), system_matrix.block(1, 0),
             system_matrix.block(0, 1), solution_owned);
     pcout << "Solving the linear system" << std::endl;
+
+    Timer timer;
+    timer.start();
     solver.solve(system_matrix, solution_owned, system_rhs, preconditioner);
-     pcout << "  " << solver_control.last_step() << " GMRES iterations"
-        << std::endl;
+    timer.stop();
+    
+    pcout << "  " << solver_control.last_step() << " GMRES iterations" << std::endl;
+    pcout << "  Time taken: " << timer.wall_time() << " seconds" << std::endl;
 
     solution = solution_owned;
-  }else if(prec == 3){
+} else if (prec == 3) {
     pcout << "Preconditioner Yosida" << std::endl;
     PreconditionYosida preconditioner;
     preconditioner.initialize(system_matrix.block(0, 0), system_matrix.block(1, 0),
             system_matrix.block(0, 1), velocity_mass.block(0, 0), solution_owned);
     pcout << "Solving the linear system" << std::endl;
+
+    Timer timer;
+    timer.start();
     solver.solve(system_matrix, solution_owned, system_rhs, preconditioner);
-     pcout << "  " << solver_control.last_step() << " GMRES iterations"
-        << std::endl;
+    timer.stop();
+    
+    pcout << "  " << solver_control.last_step() << " GMRES iterations" << std::endl;
+    pcout << "  Time taken: " << timer.wall_time() << " seconds" << std::endl;
 
     solution = solution_owned;
-  }
+}
 }
 
 template<int dim>
