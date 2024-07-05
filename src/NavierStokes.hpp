@@ -84,7 +84,7 @@ public:
               // Calculate the squared velocity profile based on the cylinder height and normalize by H squared.
               // This simplifies the cylinder influence calculation as a portion of the height squared.
               base_velocity = 4.0 * vel * std::pow(cylinder_height / 2.0, 2) / std::pow(cylinder_height, 2);
-              if (case_type == 1) return base_velocity;
+              if (case_type == 1) return base_velocity * 2.0/3.0;
               if (case_type == 2) return base_velocity * std::sin(M_PI * t / 8.0);
           }
           // Handle 3D flow conditions
@@ -92,7 +92,7 @@ public:
               // Calculate the fourth power of velocity profile based on the cylinder height and normalize by H to the fourth power.
               // This assumes an even greater influence of the height due to additional dimension considerations.
               base_velocity = 16.0 * vel * std::pow(cylinder_height / 2.0, 4) / std::pow(cylinder_height, 4);
-              if (case_type == 1) return base_velocity;
+              if (case_type == 1) return base_velocity * 4.0/9.0;
               if (case_type == 2) return base_velocity * std::sin(M_PI * t / 8.0);
           }
           return 0.0; 
@@ -101,18 +101,18 @@ public:
       virtual void vector_value(const Point<dim> &p, Vector<double> &values) const override {
 
           if constexpr(dim == 2){
-            if (case_type == 1) { // 2D unsteady
+            if (case_type == 1) { // 2D steady
               values[0] = 4.0 * vel * p[1] * (cylinder_height - p[1]) / std::pow(cylinder_height, 2);
             }
-            if (case_type == 2){ // 2D steady
+            if (case_type == 2){ // 2D unsteady
               values[0] = 4.0 * vel * p[1] * (cylinder_height - p[1]) * std::sin(M_PI * this->get_time() / 8.0) /  std::pow(cylinder_height, 2);
             }
           }
           else if constexpr(dim == 3){
-              if (case_type == 1) { // 3D unsteady
+              if (case_type == 1) { // 3D steady
                 values[0] = 16.0 * vel * p[1] * p[2] *(cylinder_height - p[1]) * (cylinder_height - p[2]) / std::pow(cylinder_height, 4);
               } 
-              if (case_type == 2) { // 3D steady
+              if (case_type == 2) { // 3D unsteady
                 values[0] = 16.0 * vel * p[1] * p[2] *(cylinder_height - p[1]) * (cylinder_height - p[2]) * std::sin(M_PI * this->get_time() / 8.0) / std::pow(cylinder_height, 4);
               }
           }  

@@ -15,8 +15,6 @@ int main(int argc, char *argv[])
     int world_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
-    std::cout << "number of processes: " << world_size << "." << std::endl;
-
     std::string  mesh_file_name  = "../mesh/mesh-0.1.msh";
     unsigned int degree_velocity = 2; // Default degree for velocity
     unsigned int degree_pressure = 1; // Default degree for pressure
@@ -27,7 +25,7 @@ int main(int argc, char *argv[])
     double p_out = 0.0; // Default outlet pressure
     double rho = 1.0; // Default density
     unsigned int velocity_case_type = 1; // Default case type
-    double vel = 0.45; // Default velocity: 2.25
+    double vel = 0.45; // Default velocity
     unsigned int  prec = 0; // Default prec: 0
     unsigned int dim = 3; // Default dim: 3
 

@@ -176,7 +176,7 @@ NavierStokes<dim>::assemble_constant_matrices()
   const unsigned int dofs_per_cell = fe->dofs_per_cell;
   const unsigned int n_q           = quadrature->size();
 
-  std::cout<<"Velocity: "<<inlet_velocity.vel<<". Velocity case type: "<<inlet_velocity.case_type<<std::endl;
+  pcout<<"Velocity: "<<inlet_velocity.vel<<". Velocity case type: "<<inlet_velocity.case_type<<std::endl;
   FEValues<dim>     fe_values(*fe,
                           *quadrature,
                           update_values | update_gradients |
