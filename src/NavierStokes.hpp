@@ -545,7 +545,8 @@ public:
                            const double rho_,
                            const int case_type_,
                            const double vel_,
-                           const unsigned int prec_)
+                           const unsigned int prec_,
+                           const unsigned int use_skew_)
   : mesh_file_name(mesh_file_name_),
     degree_velocity(degree_velocity_),
     degree_pressure(degree_pressure_),
@@ -557,6 +558,7 @@ public:
     rho(rho_),
     inlet_velocity(case_type_, vel_),
     prec(prec_),
+    use_skew(use_skew_),
     mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD)),
     mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD)),
     pcout(std::cout, mpi_rank == 0),
@@ -625,6 +627,8 @@ protected:
   InletVelocity inlet_velocity;
 
   int prec = 0; // 0->diagonal, 1->SIMPLE, 2->ASIMPLE, 2->yosida
+
+  int use_skew = 0; 
 
   // MPI processes
   const unsigned int mpi_size;

@@ -176,7 +176,7 @@ NavierStokes<dim>::assemble_constant_matrices()
   const unsigned int dofs_per_cell = fe->dofs_per_cell;
   const unsigned int n_q           = quadrature->size();
 
-  pcout<<"Velocity: "<<inlet_velocity.vel<<". Velocity case type: "<<inlet_velocity.case_type<<std::endl;
+  pcout<<"Velocity: "<<inlet_velocity.vel<<". Velocity case type: "<<inlet_velocity.case_type<< ". Using the skew-symmetric non-linear term: " <<use_skew<< std::endl;
   FEValues<dim>     fe_values(*fe,
                           *quadrature,
                           update_values | update_gradients |
@@ -310,7 +310,10 @@ void NavierStokes<dim>::assemble(const double &time)
     cell_rhs = 0.0;
 
     fe_values[velocity].get_function_values(solution, velocity_loc);
-
+    fe_values[velocity].get_function_gradients(solution, velocity_gradient_loc);
+  
+  Tensor<1, dim> nonlinear_term;
+  Tensor<1, dim> transpose_term;
     for (unsigned int q = 0; q < n_q; ++q)
     {
 
@@ -323,14 +326,40 @@ void NavierStokes<dim>::assemble(const double &time)
 
       for (unsigned int i = 0; i < dofs_per_cell; ++i)
       {
-        for (unsigned int j = 0; j < dofs_per_cell; ++j)
-        {
-          // Semi-implicit treatment of the non linear term
-          non_linear_contribution(i, j) += velocity_loc[q] * fe_values[velocity].gradient(j, q) *
-                               fe_values[velocity].value(i, q) *
-                               fe_values.JxW(q);
-        }
 
+        if (use_skew){ // Skew symmetric representation of non linear term
+            for (unsigned int j = 0; j < dofs_per_cell; ++j)
+            { 
+              // Reset the nonlinear and transpose terms.
+              nonlinear_term = 0.0;
+              transpose_term = 0.0;
+              for (unsigned int k = 0; k < dim; k++) {
+                for (unsigned int l = 0; l < dim; l++) {
+                  // Calculate (u . nabla) u.
+                  nonlinear_term[k] += velocity_loc[q][l] *
+                                        fe_values[velocity].gradient(j, q)[k][l];
+                  // Calculate (nabla u)^T u.
+                  transpose_term[k] += velocity_loc[q][k] *
+                                        fe_values[velocity].gradient(j, q)[l][k];
+                }
+              }
+              // Add the skew-symmetric term (u . nabla) u + (nabla u)^T u to the matrix.
+              non_linear_contribution(i, j) +=
+                  0.5 * (scalar_product(nonlinear_term, fe_values[velocity].value(i, q)) +
+                          scalar_product(transpose_term, fe_values[velocity].value(i, q))) *
+                  fe_values.JxW(q);
+            }
+        }
+        else{
+          for (unsigned int j = 0; j < dofs_per_cell; ++j)
+                {
+                  // Semi-implicit treatment of the non linear term
+                  non_linear_contribution(i, j) += velocity_loc[q] * fe_values[velocity].gradient(j, q) *
+                                        fe_values[velocity].value(i, q) *
+                                        fe_values.JxW(q);
+                }
+        }
+      
         // Forcing term
         cell_rhs(i) += scalar_product(forcing_term_tensor,
                                       fe_values[velocity].value(i, q)) *
@@ -460,7 +489,7 @@ NavierStokes<dim>::solve_time_step()
 {
   pcout << "===============================================" << std::endl;
 
-  SolverControl solver_control(10000, 1e-6 * system_rhs.l2_norm());
+  SolverControl solver_control(20000, 1e-4 * system_rhs.l2_norm());
 
   SolverGMRES<TrilinosWrappers::MPI::BlockVector> solver(solver_control);
 

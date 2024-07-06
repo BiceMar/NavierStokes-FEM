@@ -3,7 +3,7 @@
 #include "NavierStokes.cpp"
 
 void print_usage() {
-    std::cout << "Usage: ./navier_stokes_solver\n --mesh <mesh_file>\n --degree_velocity <degree>\n --degree_pressure <degree>\n --T <total_time>\n --deltat <time_step>\n --theta <theta>\n --nu <viscosity>\n --p_out <pressure>\n --rho <density>\n --velocity_case_type <case_type>\n --vel <velocity>\n --prec <preconditioner>\n --dim <dim>\n";
+    std::cout << "Usage: ./navier_stokes_solver\n --mesh <mesh_file>\n --degree_velocity <degree>\n --degree_pressure <degree>\n --T <total_time>\n --deltat <time_step>\n --theta <theta>\n --nu <viscosity>\n --p_out <pressure>\n --rho <density>\n --velocity_case_type <case_type>\n --vel <velocity>\n --prec <preconditioner>\n --dim <dim>\n --use_skew <use skew symmetric representation>\n";
 }
 
 int main(int argc, char *argv[])
@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
     int world_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
-    std::string  mesh_file_name  = "../mesh/mesh-0.1.msh";
+    std::string  mesh_file_name  = "../mesh/mesh-0.05.msh";
     unsigned int degree_velocity = 2; // Default degree for velocity
     unsigned int degree_pressure = 1; // Default degree for pressure
     double T = 1.0; // Default total time: 1.0
@@ -28,6 +28,7 @@ int main(int argc, char *argv[])
     double vel = 0.45; // Default velocity
     unsigned int  prec = 0; // Default prec: 0
     unsigned int dim = 3; // Default dim: 3
+    unsigned int use_skew = 3; // various representations of nonlinear term
 
     struct option long_options[] = {
         {"mesh", required_argument, 0, 'm'},
@@ -43,6 +44,7 @@ int main(int argc, char *argv[])
         {"vel", required_argument, 0, 'v'},  
         {"prec", required_argument, 0, 'e'},
         {"dim", required_argument, 0, 'i'},
+        {"use_skew", required_argument, 0, 'u'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
     };
@@ -50,7 +52,7 @@ int main(int argc, char *argv[])
     bool show_help = false;
     int option_index = 0;
     int c;
-    while ((c = getopt_long(argc, argv, "m:V:P:T:d:t:n:p:r:c:v:e:i:h", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(argc, argv, "m:V:P:T:d:t:n:p:r:c:v:e:i:u:h", long_options, &option_index)) != -1) {
         switch (c) {
             case 'm':
                 mesh_file_name = optarg;
@@ -122,6 +124,14 @@ int main(int argc, char *argv[])
                     std::exit(EXIT_FAILURE);
                 }
                 break;
+            case 'u':
+                use_skew = std::stoi(optarg);
+                if (use_skew != 0 && use_skew != 1) {
+                    std::cerr << "Invalid use_skew: " << use_skew << ". Must be either 0 or 1.\n";
+                    print_usage();
+                    std::exit(EXIT_FAILURE);
+                }
+                break;
             case 'h':
                 show_help = true;
                 break;
@@ -142,7 +152,7 @@ int main(int argc, char *argv[])
     // 2D case
     if(dim == 2){
         try {
-            NavierStokes<2> navier_stokes(mesh_file_name, degree_velocity, degree_pressure, T, deltat, theta, nu, p_out, rho, velocity_case_type, vel, prec);
+            NavierStokes<2> navier_stokes(mesh_file_name, degree_velocity, degree_pressure, T, deltat, theta, nu, p_out, rho, velocity_case_type, vel, prec, use_skew);
 
             navier_stokes.setup();
             navier_stokes.solve();
@@ -158,7 +168,7 @@ int main(int argc, char *argv[])
     // 3D case
     if(dim == 3){
         try {
-            NavierStokes<3> navier_stokes(mesh_file_name, degree_velocity, degree_pressure, T, deltat, theta, nu, p_out, rho, velocity_case_type, vel, prec);
+            NavierStokes<3> navier_stokes(mesh_file_name, degree_velocity, degree_pressure, T, deltat, theta, nu, p_out, rho, velocity_case_type, vel, prec, use_skew);
 
             navier_stokes.setup();
             navier_stokes.solve();
