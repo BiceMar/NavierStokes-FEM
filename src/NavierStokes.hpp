@@ -314,16 +314,17 @@ public:
         const unsigned int maxiter = 10000;
         const double tol = 1e-2;
         inter_sol.reinit(src);
+        
         // Solve [F 0; B -S]sol1 = src.
+        
         // First solve F*sol1_u = src_u.
         inter_sol.block(0) = dst.block(0);
         SolverControl solver_control_F(maxiter, tol * src.block(0).l2_norm());
         SolverGMRES<TrilinosWrappers::MPI::Vector> solver_F(solver_control_F);
         solver_F.solve(*F, inter_sol.block(0), src.block(0), preconditioner_F);
+        
         //Solve S*sol1_p = B*sol1_u - src_p.
-        //inter_sol.block(1) = -src.block(1);
         inter_sol.block(1) = src.block(1);
-        //inter_sol.block(1) *= -1.0;
         B->vmult_add(inter_sol.block(1), inter_sol.block(0));
         SolverControl solver_control_S(maxiter, tol * inter_sol.block(1).l2_norm());
         SolverGMRES<TrilinosWrappers::MPI::Vector> solver_S(solver_control_S);
@@ -403,19 +404,17 @@ public:
       TrilinosWrappers::MPI::Vector sol_p = src.block(1);
       TrilinosWrappers::MPI::Vector inter_sol = src.block(1);
 
-      //Solving F * sol_u = src_u with GMRES
+      //Solving F * sol_u = src_u
       solver_gmres.solve(*F, sol_u, src.block(0), preconditioner_F);
 
       // Compute the residual inter_sol = B * sol_u - src_p
       B->vmult(inter_sol, sol_u);
       inter_sol -= src.block(1);
 
-      //Solving S_tilde * sol_p = iter_sol with GMRES
+      //Solving S_tilde * sol_p = iter_sol
       SolverControl solver_S(maxiter, tol * inter_sol.l2_norm());
       SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres_S(solver_S);
       solver_gmres_S.solve(S_tilde, sol_p, inter_sol, preconditioner_S);
-      //SolverCG<TrilinosWrappers::MPI::Vector> solver_cg(solver_S);
-      //solver_cg.solve(S_tilde, sol_p, inter_sol, preconditioner_S);
 
       // Update destination vector 
       dst.block(1) = sol_p;
@@ -484,22 +483,24 @@ public:
       const double tol = 1e-2;
 
       SolverControl solver_F(maxiter, tol * src.block(0).l2_norm());
-      SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres(solver_F);
+      SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres_F(solver_F);
 
       tmp.reinit(src.block(1));
 
-      // Solve F * dst.block(0) = src.block(0) using GMRES
-      solver_gmres.solve(*F, dst.block(0), src.block(0), preconditionerF);
+      // Solve F * dst_u = src_u
+      solver_gmres_F.solve(*F, dst.block(0), src.block(0), preconditionerF);
       dst.block(1) = src.block(1);
       
+      // Compute the residual tmp = B * dst_u - src_p
       B->vmult(dst.block(1), dst.block(0));
       dst.block(1).sadd(-1.0, src.block(1));
       tmp = dst.block(1);
+      
+      // Solve the linear system S * dst_p = tmp 
       SolverControl solver_S(maxiter, tol * tmp.l2_norm());
-      //SolverCG<TrilinosWrappers::MPI::Vector> solver_cg(solver_S);
-      //solver_cg.solve(S, dst.block(1), tmp, preconditionerS);
-      //SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres(solver_S);
-      solver_gmres.solve(S, dst.block(1), tmp, preconditionerS);
+      SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres_S(solver_S);
+      solver_gmres_S.solve(S, dst.block(1), tmp, preconditionerS);
+      
       dst.block(0).scale(neg_D);
       dst.block(1) *= 1.0 / alpha;
 
@@ -510,7 +511,7 @@ public:
     }
 
   protected:
-    // Pointers to sparse matrices
+
     const TrilinosWrappers::SparseMatrix *F;
     const TrilinosWrappers::SparseMatrix *B_T;
     const TrilinosWrappers::SparseMatrix *B;
