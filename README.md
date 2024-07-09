@@ -2,12 +2,12 @@
 This project focuses on simulating incompressible laminar flow around cylinders using the finite element method implemented using deal.II library coded in C++. 
 Various preconditioners and MPI for parallelization are employed to improve performance and manage the extensive computational demands. 
 
-# Mesh
+## Mesh
 The 2D and 3D meshes generated with Gmsh for the simulations are located in the mesh folder. 
 For 2D simulations, the file "mesh_2D_coarse" can be used. 
 For 3D simulations, a variety of meshes are available, ranging from the coarser "mesh-0.1" to the finer "mesh-0.0125."
 
-# Src
+## Src
 The source code is organized into three main files:
 
 - main.cpp: This file handles the general execution of the program. It serves as the entry point, calling functions, and managing the overall process.
