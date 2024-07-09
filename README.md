@@ -1,6 +1,6 @@
 # Navier-Stokes project
 This project focuses on simulating incompressible laminar flow around cylinders using the finite element method implemented using deal.II library coded in C++. 
-Various preconditioners and MPI for parallelization are utilized to improve performance and manage the extensive computational demands. 
+Various preconditioners and MPI for parallelization are employed to improve performance and manage the extensive computational demands. 
 
 # Compiling
 
