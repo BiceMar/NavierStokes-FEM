@@ -1,6 +1,6 @@
-# nmpde-project3
-Implementation of a finite element solver for the unsteady, incompressible Navier-Stokes equations to simulate the 2D or 3D benchmark problem “flow past a cylinder”
-for different values of the Reynolds number Re ≤ 200.
+# Navier-Stokes project
+This project focuses on simulating incompressible laminar flow around cylinders using the finite element method implemented using deal.II library coded in C++. 
+Various preconditioners and MPI for parallelization are utilized to improve performance and manage the extensive computational demands. 
 
 # Compiling
 
