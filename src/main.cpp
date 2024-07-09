@@ -3,7 +3,7 @@
 #include "NavierStokes.cpp"
 
 void print_usage() {
-    std::cout << "Usage: ./navier_stokes_solver\n --mesh <mesh_file>\n --degree_velocity <degree>\n --degree_pressure <degree>\n --T <total_time>\n --deltat <time_step>\n --theta <theta>\n --nu <viscosity>\n --p_out <pressure>\n --rho <density>\n --velocity_case_type <case_type>\n --vel <velocity>\n --prec <preconditioner>\n --dim <dim>\n --use_skew <use skew symmetric representation>\n";
+    std::cout << "Usage: ./navier_stokes_solver\n --mesh <mesh_file> : mesh-0.1, mesh-0.05, mesh-0.025, mesh-0.0125\n --degree_velocity <degree>\n --degree_pressure <degree>\n --T <total_time>\n --deltat <time_step>\n  --theta <theta>\n --nu <viscosity>\n --p_out <pressure>\n --rho <density>\n --velocity_case_type <case_type>\n --vel <velocity>\n --prec <preconditioner>: 0 for block-diagonal, 1 for SIMPLE, 2 for aSIMPLE, 3 for Yosida\n --dim <dim>: 2 for 2D, 3 for 3D\n --use_skew <use skew symmetric representation>: 0 for skew, 1 for actual non-linear term\n";
 }
 
 int main(int argc, char *argv[])
@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
     int world_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
-    std::string  mesh_file_name  = "../mesh/mesh-0.05.msh";
+    std::string  mesh_file_name  = "../mesh/mesh-0.025.msh";
     unsigned int degree_velocity = 2; // Default degree for velocity
     unsigned int degree_pressure = 1; // Default degree for pressure
     double T = 1.0; // Default total time: 1.0
@@ -25,10 +25,10 @@ int main(int argc, char *argv[])
     double p_out = 0.0; // Default outlet pressure
     double rho = 1.0; // Default density
     unsigned int velocity_case_type = 1; // Default case type
-    double vel = 0.45; // Default velocity
+    double vel = 0.45; // Default velocity: 0.45
     unsigned int  prec = 0; // Default prec: 0
     unsigned int dim = 3; // Default dim: 3
-    unsigned int use_skew = 3; // various representations of nonlinear term
+    unsigned int use_skew = 0; // various representations of nonlinear term
 
     struct option long_options[] = {
         {"mesh", required_argument, 0, 'm'},
