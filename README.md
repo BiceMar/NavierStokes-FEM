@@ -10,7 +10,7 @@ For 3D simulations, a variety of meshes are available, ranging from the coarser 
 # Src
 The source code is organized into three main files:
 
-- main.cpp: This file handles the general execution of the program. It serves as the entry point, initializing components, calling functions, and managing the overall process.
+- main.cpp: This file handles the general execution of the program. It serves as the entry point, calling functions, and managing the overall process.
 - Navier_Stokes.cpp: This file contains the implementation of all functions needed to assemble and solve the Navier-Stokes equations.
 - Navier_Stokes.hpp: This header file contains the declarations of all the classes and function prototypes used in the project. It defines the data structures and interfaces ecessary for the implementation in Navier_Stokes.cpp.
 
